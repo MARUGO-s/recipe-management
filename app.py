@@ -186,7 +186,10 @@ def admin_upload():
         return jsonify({"success": True, "count": count})
     
     except Exception as e:
-        return jsonify({"error": "アップロードに失敗しました"}), 500
+        print(f"アップロードエラー詳細: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"アップロードに失敗しました: {str(e)}"}), 500
 
 
 @app.route("/admin/upload-transaction", methods=['POST'])
