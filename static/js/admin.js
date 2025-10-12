@@ -447,6 +447,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                             </thead>
                                             <tbody>
                                                 ${data.cost_master?.map(item => {
+                                                    // 容量の表示（小数点以下を削除）
+                                                    const capacity = item.capacity || 0;
+                                                    const capacityDisplay = capacity === parseInt(capacity) ? 
+                                                        parseInt(capacity).toString() : 
+                                                        capacity.toString();
+                                                    
                                                     // 単位情報の表示（単位列がある場合は追加表示）
                                                     const unitColumn = item.unit_column || '';
                                                     let unitDisplay = item.unit || '-';
@@ -454,13 +460,19 @@ document.addEventListener('DOMContentLoaded', function() {
                                                         unitDisplay += ` (単位列: ${unitColumn})`;
                                                     }
                                                     
+                                                    // 単価の表示（小数点以下を削除）
+                                                    const unitPrice = item.unit_price || 0;
+                                                    const unitPriceDisplay = unitPrice === parseInt(unitPrice) ? 
+                                                        parseInt(unitPrice) : 
+                                                        unitPrice;
+                                                    
                                                     return `
                                                     <tr>
                                                         <td>${item.ingredient_name || '-'}</td>
                                                         <td>${item.suppliers?.name || '-'}</td>
-                                                        <td>${item.capacity || '-'}</td>
+                                                        <td>${capacityDisplay}</td>
                                                         <td>${unitDisplay}</td>
-                                                        <td>¥${item.unit_price != null ? item.unit_price : 0}</td>
+                                                        <td>¥${unitPriceDisplay}</td>
                                                     </tr>
                                                     `;
                                                 }).join('') || '<tr><td colspan="5" class="text-center">データなし</td></tr>'}
