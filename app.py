@@ -1327,7 +1327,8 @@ def create_ingredient_flex_message(cost, is_single=True):
             "action": {
                 "type": "postback",
                 "label": "修正",
-                "data": f"edit_ingredient={cost['id']}"
+                "data": f"edit_ingredient={cost['id']}",
+                "displayText": f"修正: {ingredient_name}"
             }
         }]
         
@@ -1377,15 +1378,12 @@ def handle_search_ingredient(event, search_term: str):
         print(f"📊 検索結果: {len(results) if results else 0}件")
         
         if not results:
-            add_form_url = "https://recipe-management-nd00.onrender.com/ingredient/form"
             line_bot_api.reply_message(ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=[TextMessage(text=f"""「{search_term}」に一致する材料が見つかりませんでした。
 
-📝 新規追加フォーム：
-{add_form_url}
+原価表に登録するには：
 
-または、テキストで追加：
 ✅ 推奨形式：
 ・「追加 {search_term} 100円/個」
 ・「追加 {search_term} 200円/kg」
