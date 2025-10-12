@@ -163,11 +163,13 @@ def admin_upload():
         count = 0
         for row in csv_reader:
             try:
+                print(f"Processing row: {row}")
                 # データの検証と変換
                 ingredient_name = row.get(column_mapping.get('ingredient_name', ''), '').strip()
                 unit_price = row.get(column_mapping.get('unit_price', ''), '').strip()
                 
                 if not ingredient_name or not unit_price:
+                    print(f"Skipping row due to missing ingredient_name or unit_price: {row}")
                     continue
                 
                 # Supabaseにデータを挿入
@@ -178,9 +180,11 @@ def admin_upload():
                     'unit_price': float(unit_price),
                     'updated_at': datetime.now().isoformat()
                 }
-                supabase.table('cost_master').upsert(data).execute()
+                print(f"Data to upsert: {data}")
+                supabase.table('cost_master').upsert(data, on_conflict='ingredient_name').execute()
                 count += 1
             except (ValueError, KeyError) as e:
+                print(f"Skipping row due to error: {e}. Row data: {row}")
                 continue
         
         return jsonify({"success": True, "count": count})
@@ -352,7 +356,7 @@ def admin_upload_transaction():
                     'unit': material_data['unit'],
                     'unit_price': material_data['price'],
                     'updated_at': datetime.now().isoformat()
-                }).execute()
+                }, on_conflict='ingredient_name').execute()
                 saved_count += 1
             except Exception as e:
                 print(f"保存エラー: {e}")

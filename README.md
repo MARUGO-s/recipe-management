@@ -20,12 +20,12 @@ LINE (合計原価を返信)
 
 ## 🏗️ アーキテクチャ
 
-- **フロントエンド**: LINE Bot (Messaging API)
+- **フロントエンド**: LINE Bot (Messaging API) + Web管理画面
 - **バックエンド**: Flask + Gunicorn (Renderでホスティング)
 - **画像解析**: Azure Computer Vision (OCR)
-- **テキスト解析**: Groq (llama-3.1-70b-versatile)
+- **テキスト解析**: Groq (llama-3.1-8b-instant)
 - **データベース**: Supabase (PostgreSQL)
-- **ストレージ**: Supabase Storage (原価表CSV)
+- **ファイル管理**: Web管理画面でのCSVアップロード
 
 ## 📁 プロジェクト構成
 
@@ -35,27 +35,34 @@ recipe-management/
 ├── azure_vision.py           # Azure Vision API処理
 ├── groq_parser.py            # Groqによるレシピ解析
 ├── cost_calculator.py        # 原価計算ロジック
-├── cost_master_manager.py    # 原価表管理（NEW!）
-├── test_local.py             # ローカルテスト用スクリプト
+├── cost_master_manager.py    # 原価表管理
 ├── requirements.txt          # Python依存パッケージ
 ├── Procfile                  # Render設定
 ├── runtime.txt               # Pythonバージョン
 ├── env.template              # 環境変数テンプレート
-├── supabase_setup.sql        # Supabaseテーブル定義
-├── cost_master_sample.csv    # 原価表サンプル
+├── .gitignore                # Git除外設定
+├── templates/
+│   └── index.html            # Web管理画面
+├── static/
+│   └── js/
+│       └── admin.js          # 管理画面JavaScript
+├── supabase/
+│   └── migrations/           # データベースマイグレーション
+│       ├── 20250112000000_initial_schema.sql
+│       ├── 20250112000001_add_capacity_fields.sql
+│       └── 20250112000002_add_capacity_to_cost_master.sql
 ├── README.md                 # このファイル
-├── setup_instructions.md     # 詳細セットアップ手順
-└── QUICKSTART.md             # クイックスタート
+└── CHANGELOG.md              # 変更履歴
 ```
 
 ## 🚀 セットアップ手順
 
 ### 1. 環境変数の設定
 
-`.env.example`を`.env`にコピーして、各種APIキーを設定してください。
+`env.template`を`.env`にコピーして、各種APIキーを設定してください。
 
 ```bash
-cp .env.example .env
+cp env.template .env
 ```
 
 #### 必要なAPIキー・設定
@@ -79,33 +86,23 @@ cp .env.example .env
 
 #### 2.1 テーブル作成
 
-`supabase_setup.sql`の内容をSupabase SQL Editorで実行してください。
+Supabase SQL Editorで以下のマイグレーションを順番に実行してください：
+
+1. `supabase/migrations/20250112000000_initial_schema.sql`
+2. `supabase/migrations/20250112000001_add_capacity_fields.sql`
+3. `supabase/migrations/20250112000002_add_capacity_to_cost_master.sql`
+
+#### 2.2 データベース制約の調整
+
+以下のSQLを実行してNOT NULL制約を緩和してください：
 
 ```sql
--- recipes, ingredients, cost_master テーブルが作成されます
+ALTER TABLE cost_master
+ALTER COLUMN reference_unit DROP NOT NULL;
+
+ALTER TABLE cost_master
+ALTER COLUMN reference_quantity DROP NOT NULL;
 ```
-
-#### 2.2 ストレージバケット作成
-
-1. Supabaseダッシュボードで「Storage」→「New bucket」
-2. バケット名: `cost-data`
-3. Public: OFF (Private)
-4. `cost_master_sample.csv`を参考に原価表CSVを作成してアップロード
-   - ファイル名: `cost_master.csv`
-   - パス: `cost-data/cost_master.csv`
-
-#### 2.3 原価表CSVのフォーマット
-
-```csv
-ingredient_name,unit_price,reference_unit,reference_quantity
-玉ねぎ,50,個,1
-豚肉,300,g,100
-```
-
-- `ingredient_name`: 材料名
-- `unit_price`: 基準数量あたりの価格（円）
-- `reference_unit`: 基準単位
-- `reference_quantity`: 基準数量
 
 ### 3. ローカル開発
 
@@ -149,7 +146,7 @@ git push -u origin main
    AZURE_VISION_KEY=xxx
    GROQ_API_KEY=xxx
    SUPABASE_URL=xxx
-   SUPABASE_KEY=xxx
+   SUPABASE_ANON_KEY=xxx
    ```
 
 6. 「Create Web Service」
@@ -168,17 +165,57 @@ git push -u origin main
 2. レシピが写っている画像を送信
 3. 自動で解析され、原価が返信されます
 
-#### テスト用コマンド
+## 💡 主な機能
 
-**基本**
-- `ヘルプ` または `help`: 使い方を表示
+### レシピ解析
+- ✅ 画像からレシピを自動抽出
+- ✅ 材料名、分量、単位を自動解析
+- ✅ 容量・規格情報の抽出（例: 500gパック）
+- ✅ 原価表を参照して自動計算
+- ✅ 単位変換対応（g、kg、ml、大さじ、小さじなど）
+- ✅ Supabaseにレシピデータを保存
+- ✅ 1人前の原価も表示
 
-**原価表管理**
-- `追加 トマト 100円/個`: 原価を追加
-- `追加 豚肉 300円/100g`: 原価を追加（重量単位）
-- `確認 トマト`: 原価を確認
-- `削除 トマト`: 原価を削除
-- `原価一覧`: 登録されている全材料を表示
+### 原価表管理
+- ✅ LINEから原価を追加・更新
+- ✅ 自然言語で入力可能（例: 「トマト 100円/個」）
+- ✅ 材料検索機能（材料名を入力すると単価を返信）
+- ✅ 原価の確認・削除
+- ✅ 原価一覧の表示
+- ✅ Groqによる自動解析
+
+### Web管理画面
+- ✅ データベース統計の表示
+- ✅ 原価表CSVのアップロード
+- ✅ 取引データCSVのアップロード（材料情報抽出）
+- ✅ データの確認・エクスポート
+- ✅ テンプレートファイルのダウンロード
+
+## 🆕 使い方
+
+### レシピ解析
+LINEでレシピ画像を送信するだけで、自動的に材料と原価を解析します。
+
+### 原価表管理（LINE）
+```
+追加 トマト 100円/個
+追加 豚バラ肉 300円/100g
+確認 トマト
+削除 トマト
+原価一覧
+```
+
+### 材料検索（LINE）
+```
+トマト
+```
+→ トマトの単価と取引先情報を返信
+
+### Web管理画面
+`https://your-app.onrender.com/admin` にアクセスして：
+- 原価表CSVのアップロード
+- 取引データCSVのアップロード
+- データベースの確認・管理
 
 ## 📊 データベーススキーマ
 
@@ -200,6 +237,8 @@ git push -u origin main
 | ingredient_name | TEXT | 材料名 |
 | quantity | DECIMAL | 数量 |
 | unit | TEXT | 単位 |
+| capacity | DECIMAL | 容量・包装量 |
+| capacity_unit | TEXT | 容量単位 |
 | cost | DECIMAL | 原価 |
 
 ### cost_master テーブル
@@ -207,28 +246,32 @@ git push -u origin main
 |---------|-----|------|
 | id | UUID | ID |
 | ingredient_name | TEXT | 材料名（ユニーク） |
+| capacity | DECIMAL | 容量・包装量 |
+| unit | TEXT | 単位 |
 | unit_price | DECIMAL | 単価 |
-| reference_unit | TEXT | 基準単位 |
-| reference_quantity | DECIMAL | 基準数量 |
+| reference_unit | TEXT | 基準単位（旧形式互換） |
+| reference_quantity | DECIMAL | 基準数量（旧形式互換） |
+| updated_at | TIMESTAMP | 更新日時 |
 
 ## 🔧 トラブルシューティング
 
 ### 画像が解析されない
-
 - Azure Vision APIのクレジットを確認
 - 画像が鮮明かどうか確認
 - OCR対応言語を確認（日本語対応）
 
 ### 原価が計算されない
+- Web管理画面で原価表データがアップロードされているか確認
+- 材料名が原価表と一致しているか確認（部分一致検索対応）
 
-- Supabaseストレージに`cost_master.csv`がアップロードされているか確認
-- 材料名が原価表と一致しているか確認（完全一致が必要）
+### アップロードが失敗する
+- CSVファイルの形式が正しいか確認
+- テンプレートファイルをダウンロードして使用
+- データベースの制約エラーを確認
 
 ### Renderでタイムアウトする
-
 - 無料プランは初回アクセス時にコールドスタートが発生します
 - LINE側のタイムアウト（30秒）に注意
-  - 長時間処理の場合は`reply_message`の後に`push_message`を使用
 
 ### ログの確認
 
@@ -262,69 +305,6 @@ Issue・Pull Requestを歓迎します！
 
 ---
 
-## 💡 主な機能
-
-### レシピ解析
-- ✅ 画像からレシピを自動抽出
-- ✅ 材料名、分量、単位を自動解析
-- ✅ 原価表を参照して自動計算
-- ✅ 単位変換対応（g、kg、ml、大さじ、小さじなど）
-- ✅ Supabaseにレシピデータを保存
-- ✅ 1人前の原価も表示
-
-### 原価表管理（NEW! 🎉）
-- ✅ LINEから原価を追加・更新
-- ✅ 自然言語で入力可能（例: 「トマト 100円/個」）
-- ✅ 原価の確認・削除
-- ✅ 原価一覧の表示
-- ✅ Groqによる自動解析
-
-## 🆕 使い方（原価表管理）
-
-### 原価を追加
-```
-追加 トマト 100円/個
-追加 豚バラ肉 300円/100g
-追加 キャベツ1玉150円
-追加 牛乳 200円/1L
-```
-
-自然な日本語で入力すると、Groqが自動的に以下の情報を解析します：
-- 材料名
-- 単価
-- 基準単位
-- 基準数量
-
-### 原価を確認
-```
-確認 トマト
-```
-
-### 原価を削除
-```
-削除 トマト
-```
-
-### 原価一覧
-```
-原価一覧
-```
-または
-```
-一覧
-```
-
-## 🛠️ カスタマイズ例
-
-- ~~原価表に新しい材料を追加（`cost_master.csv`を編集）~~ → **LINEから直接追加可能！**
-- レシピの保存形式を変更（`app.py`の`save_recipe_to_supabase`）
-- 返信メッセージのフォーマット変更（`format_cost_response`）
-- 画像解析精度の調整（`groq_parser.py`のプロンプト）
-- 原価追加の解析精度調整（`cost_master_manager.py`のプロンプト）
-
----
-
 **開発者**: recipe-management project  
-**バージョン**: 2.0.0  
-**最終更新**: 2025-10-12
-
+**バージョン**: 2.1.0  
+**最終更新**: 2025-01-12
