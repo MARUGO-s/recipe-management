@@ -23,11 +23,29 @@ document.addEventListener('DOMContentLoaded', function() {
         fileInput: !!fileInput,
         uploadBtn: !!uploadBtn,
         downloadBtn: !!downloadBtn,
+        downloadTransactionBtn: !!downloadTransactionBtn,
         refreshBtn: !!refreshBtn,
         viewDataBtn: !!viewDataBtn,
         exportDataBtn: !!exportDataBtn,
         clearDataBtn: !!clearDataBtn
     });
+    
+    // 要素が見つからない場合はエラーメッセージを表示
+    const missingElements = [];
+    if (!uploadArea) missingElements.push('uploadArea');
+    if (!fileInput) missingElements.push('fileInput');
+    if (!uploadBtn) missingElements.push('uploadBtn');
+    if (!downloadBtn) missingElements.push('downloadBtn');
+    if (!downloadTransactionBtn) missingElements.push('downloadTransactionBtn');
+    if (!refreshBtn) missingElements.push('refreshBtn');
+    if (!viewDataBtn) missingElements.push('viewDataBtn');
+    if (!exportDataBtn) missingElements.push('exportDataBtn');
+    if (!clearDataBtn) missingElements.push('clearDataBtn');
+    
+    if (missingElements.length > 0) {
+        console.error('❌ Missing elements:', missingElements);
+        return; // 重要な要素が見つからない場合は処理を停止
+    }
     
     let selectedFile = null;
 
@@ -140,7 +158,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // アップロードタイプを取得
-        const uploadType = document.querySelector('input[name="uploadType"]:checked').value;
+        const uploadTypeElement = document.querySelector('input[name="uploadType"]:checked');
+        if (!uploadTypeElement) {
+            console.error('❌ Upload type radio button not found');
+            showStatus('error', 'アップロードタイプが選択されていません。');
+            return;
+        }
+        
+        const uploadType = uploadTypeElement.value;
         const endpoint = uploadType === 'transaction' ? '/admin/upload-transaction' : '/admin/upload';
         
         console.log('📋 Upload details:', {
