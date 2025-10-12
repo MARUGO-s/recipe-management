@@ -88,11 +88,12 @@ def extract_capacity_from_spec(spec_text, product_name=""):
         (r'(\d+(?:\.\d+)?)\s*L', lambda m: (float(m.group(1)) * 1000, 'ml')),
         (r'(\d+(?:\.\d+)?)\s*ml', lambda m: (float(m.group(1)), 'ml')),
         # 個数系
-        (r'(\d+(?:\.\d+)?)\s*個', lambda m: (float(m.group(1)), '個')),
-        (r'(\d+(?:\.\d+)?)\s*本', lambda m: (float(m.group(1)), '個')),
-        (r'(\d+(?:\.\d+)?)\s*枚', lambda m: (float(m.group(1)), '個')),
+        (r'(\d+(?:\.\d+)?)\s*pc', lambda m: (float(m.group(1)), 'pc')),
+        (r'(\d+(?:\d+)?)\s*個', lambda m: (float(m.group(1)), '個')),
+        (r'(\d+(?:\.\d+)?)\s*本', lambda m: (float(m.group(1)), '本')),
+        (r'(\d+(?:\.\d+)?)\s*枚', lambda m: (float(m.group(1)), '枚')),
         # パック系
-        (r'(\d+(?:\.\d+)?)\s*p', lambda m: (float(m.group(1)), '個')),
+        (r'(\d+(?:\.\d+)?)\s*p', lambda m: (float(m.group(1)), 'p')),
     ]
     
     # 規格から容量を抽出
