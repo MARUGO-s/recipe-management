@@ -37,9 +37,14 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')
 
-# CSRF保護を有効化
-from flask_wtf.csrf import CSRFProtect
-csrf = CSRFProtect(app)
+# CSRF保護を有効化（エラー処理付き）
+try:
+    from flask_wtf.csrf import CSRFProtect
+    csrf = CSRFProtect(app)
+    print("✅ CSRF保護が有効化されました")
+except ImportError as e:
+    print(f"⚠️ CSRF保護のインポートに失敗: {e}")
+    csrf = None
 
 # LINE Bot設定
 configuration = Configuration(access_token=os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
@@ -744,7 +749,8 @@ def ingredient_form():
         
         return render_template('ingredient_form.html', 
                              is_edit=is_edit, 
-                             ingredient_data=ingredient_data)
+                             ingredient_data=ingredient_data,
+                             csrf_token=csrf.generate_csrf if csrf else None)
         
     except Exception as e:
         print(f"フォーム表示エラー: {e}")
@@ -753,7 +759,8 @@ def ingredient_form():
         return render_template('ingredient_form.html', 
                              is_edit=False, 
                              ingredient_data=None,
-                             error_message="フォームの読み込みに失敗しました")
+                             error_message="フォームの読み込みに失敗しました",
+                             csrf_token=csrf.generate_csrf if csrf else None)
 
 
 @app.route("/ingredient/submit", methods=['POST'])
@@ -776,13 +783,15 @@ def submit_ingredient_form():
             return render_template('ingredient_form.html',
                                  is_edit=is_edit,
                                  ingredient_data=None,
-                                 error_message="材料名は必須です")
+                                 error_message="材料名は必須です",
+                                 csrf_token=csrf.generate_csrf if csrf else None)
         
         if not unit_price:
             return render_template('ingredient_form.html',
                                  is_edit=is_edit,
                                  ingredient_data=None,
-                                 error_message="単価は必須です")
+                                 error_message="単価は必須です",
+                                 csrf_token=csrf.generate_csrf if csrf else None)
         
         try:
             capacity = float(capacity) if capacity else 1.0
@@ -791,7 +800,8 @@ def submit_ingredient_form():
             return render_template('ingredient_form.html',
                                  is_edit=is_edit,
                                  ingredient_data=None,
-                                 error_message="容量または単価の値が不正です")
+                                 error_message="容量または単価の値が不正です",
+                                 csrf_token=csrf.generate_csrf if csrf else None)
         
         # 取引先の処理
         supplier_id = None
@@ -833,7 +843,8 @@ def submit_ingredient_form():
         return render_template('ingredient_form.html',
                              is_edit=False,
                              ingredient_data=None,
-                             success_message=success_message)
+                             success_message=success_message,
+                             csrf_token=csrf.generate_csrf if csrf else None)
         
     except Exception as e:
         print(f"フォーム送信エラー: {e}")
@@ -842,7 +853,8 @@ def submit_ingredient_form():
         return render_template('ingredient_form.html',
                              is_edit=is_edit if 'is_edit' in locals() else False,
                              ingredient_data=None,
-                             error_message="データの保存に失敗しました")
+                             error_message="データの保存に失敗しました",
+                             csrf_token=csrf.generate_csrf if csrf else None)
 
 @app.route("/health", methods=['GET'])
 def health_check():

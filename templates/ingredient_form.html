@@ -188,7 +188,9 @@
             {% endif %}
             
             <form method="POST" action="{{ url_for('submit_ingredient_form') }}" id="ingredientForm">
+                {% if csrf_token %}
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% endif %}
                 <input type="hidden" name="is_edit" value="{{ is_edit }}">
                 {% if is_edit and ingredient_data %}
                 <input type="hidden" name="ingredient_id" value="{{ ingredient_data.id }}">
