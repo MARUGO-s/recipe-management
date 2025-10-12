@@ -232,107 +232,87 @@ def admin_upload():
 
 @app.route("/admin/upload-transaction", methods=['POST'])
 def admin_upload_transaction():
-    """取引データCSVファイルのアップロード（特定フォーマット対応）"""
+    """取引データCSVファイルのアップロード（正規化対応）"""
     try:
         if 'file' not in request.files:
             return jsonify({"error": "ファイルが選択されていません"}), 400
-        
         file = request.files['file']
-        if file.filename == '':
-            return jsonify({"error": "ファイルが選択されていません"}), 400
-        
         if not file.filename.lower().endswith('.csv'):
             return jsonify({"error": "CSVファイルのみアップロード可能です"}), 400
-        
-        # 文字コードをcp932としてデコード
+
         try:
             csv_data = file.read().decode('cp932')
         except UnicodeDecodeError:
-            # cp932で失敗した場合、utf-8-sigを試す
             file.seek(0)
             csv_data = file.read().decode('utf-8-sig')
 
         csv_reader = csv.reader(io.StringIO(csv_data))
         
         extracted_materials = {}
-        count = 0
+        processed_count = 0
         
         for row in csv_reader:
             try:
-                # データ行（Dで始まる）のみを処理
-                if not row or row[0] != 'D':
-                    continue
+                if not row or row[0] != 'D': continue
 
-                # 固定列からデータを抽出
                 price_str = row[18].strip()
                 product = row[14].strip()
+                if not product or not price_str: continue
 
-                # 商品名か単価が空ならスキップ
-                if not product or not price_str:
-                    continue
-                
                 price = float(price_str.replace(',', ''))
-                if price == 0:
-                    continue # 単価0は無視
+                if price <= 0: continue
 
                 supplier = row[8].strip()
                 spec = row[15].strip()
-                
-                # 材料名の正規化（取引先名を含める）
-                material_name = f"{product}（{supplier}）" if supplier else product
-                
-                # 規格と商品名から容量を抽出
                 capacity, unit = extract_capacity_from_spec(spec, product)
                 
-                # 重複チェック（より安い価格で更新）
-                if material_name in extracted_materials:
-                    if price < extracted_materials[material_name]['price']:
-                        extracted_materials[material_name] = {
-                            'name': material_name,
-                            'capacity': capacity,
-                            'unit': unit,
-                            'price': price
-                        }
-                else:
-                    extracted_materials[material_name] = {
-                        'name': material_name,
+                # (商品名, 取引先名) のタプルをキーに重複排除
+                item_key = (product, supplier)
+                if item_key not in extracted_materials or price < extracted_materials[item_key]['price']:
+                    extracted_materials[item_key] = {
+                        'product': product,
+                        'supplier': supplier,
                         'capacity': capacity,
                         'unit': unit,
                         'price': price
                     }
-                count += 1
-                
+                processed_count += 1
             except (IndexError, ValueError) as e:
-                print(f"行処理エラー（スキップ）: {e}, Row: {row}")
+                print(f"行処理エラー（スキップ）: {e}")
                 continue
+
+        # 抽出した取引先名をDBに登録・更新
+        supplier_names = {item['supplier'] for item in extracted_materials.values() if item['supplier']}
+        if supplier_names:
+            supplier_insert_data = [{'name': name} for name in supplier_names]
+            supabase.table("suppliers").upsert(supplier_insert_data, on_conflict='name').execute()
+        
+        # 取引先名とIDのマップを作成
+        all_suppliers = supabase.table("suppliers").select("id, name").execute().data
+        supplier_name_to_id = {s['name']: s['id'] for s in all_suppliers}
+
+        # cost_masterに登録するためのデータを作成
+        items_to_upsert = []
+        for item in extracted_materials.values():
+            items_to_upsert.append({
+                'ingredient_name': item['product'],
+                'supplier_id': supplier_name_to_id.get(item['supplier']),
+                'capacity': item['capacity'],
+                'unit': item['unit'],
+                'unit_price': item['price'],
+                'updated_at': datetime.now().isoformat()
+            })
 
         # データベースに一括で保存
         saved_count = 0
-        items_to_upsert = list(extracted_materials.values())
-        
         if items_to_upsert:
-            try:
-                print(f"Upserting {len(items_to_upsert)} unique items from transactions in a batch.")
-                
-                supabase_items = [
-                    {
-                        'ingredient_name': item['name'],
-                        'capacity': item['capacity'],
-                        'unit': item['unit'],
-                        'unit_price': item['price'],
-                        'updated_at': datetime.now().isoformat()
-                    }
-                    for item in items_to_upsert
-                ]
-                
-                result = supabase.table('cost_master').upsert(supabase_items, on_conflict='ingredient_name').execute()
-                saved_count = len(result.data)
-            except Exception as e:
-                print(f"一括保存エラー: {e}")
+            # ingredient_name, supplier_id, capacity, unit を複合キーとして重複を判断
+            result = supabase.table('cost_master').upsert(items_to_upsert, on_conflict='ingredient_name,supplier_id,capacity,unit').execute()
+            saved_count = len(result.data)
 
         return jsonify({
             "success": True, 
-            "processed": count,
+            "processed": processed_count,
             "extracted": len(extracted_materials),
             "saved": saved_count
         })
@@ -341,7 +321,7 @@ def admin_upload_transaction():
         print(f"取引データアップロードエラー: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": "取引データのアップロードに失敗しました"}), 500
+        return jsonify({"error": f"取引データのアップロードに失敗しました: {str(e)}"}), 500
 @app.route("/admin/template", methods=['GET'])
 def admin_template():
     """CSVテンプレートのダウンロード"""
@@ -626,7 +606,7 @@ def admin_data():
     """データベース内容の取得"""
     try:
         # 原価マスターの取得
-        cost_master_result = supabase.table('cost_master').select('*').order('ingredient_name').execute()
+        cost_master_result = supabase.table('cost_master').select('*, suppliers(name)').order('ingredient_name').execute()
         
         # レシピの取得
         recipes_result = supabase.table('recipes').select('*').order('created_at', desc=True).limit(20).execute()
@@ -918,22 +898,16 @@ def handle_search_ingredient(event, search_term: str):
         if len(results) == 1:
             # 完全一致または1件のみの場合
             cost = results[0]
-            
-            # 取引先名を抽出（材料名に「（取引先名）」が含まれている場合）
             ingredient_name = cost['ingredient_name']
-            supplier = ""
-            if "（" in ingredient_name and "）" in ingredient_name:
-                parts = ingredient_name.split("（")
-                ingredient_name = parts[0]
-                supplier = parts[1].replace("）", "")
+            supplier_name = cost.get('suppliers', {}).get('name') if cost.get('suppliers') else None
             
             response = f"""📋 {ingredient_name}
 
 【容量】{cost['capacity']}{cost['unit']}
 【単価】¥{cost['unit_price']:.2f}"""
             
-            if supplier:
-                response += f"\n【取引先】{supplier}"
+            if supplier_name:
+                response += f"\n【取引先】{supplier_name}"
             
             if cost.get('updated_at'):
                 response += f"\n【更新日】{cost['updated_at'][:10]}"
@@ -943,13 +917,10 @@ def handle_search_ingredient(event, search_term: str):
             
             for i, cost in enumerate(results, 1):
                 ingredient_name = cost['ingredient_name']
-                supplier = ""
-                if "（" in ingredient_name and "）" in ingredient_name:
-                    parts = ingredient_name.split("（")
-                    ingredient_name = parts[0]
-                    supplier = f" ({parts[1].replace('）', '')})"
-                
-                response += f"{i}. {ingredient_name}{supplier}\n"
+                supplier_name = cost.get('suppliers', {}).get('name') if cost.get('suppliers') else None
+                supplier_str = f"（{supplier_name}）" if supplier_name else ""
+
+                response += f"{i}. {ingredient_name}{supplier_str}\n"
                 response += f"   {cost['capacity']}{cost['unit']} = ¥{cost['unit_price']:.0f}\n\n"
         
         line_bot_api.reply_message(ReplyMessageRequest(

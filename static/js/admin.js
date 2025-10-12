@@ -439,6 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>材料名</th>
+                                                    <th>取引先</th>
                                                     <th>容量</th>
                                                     <th>単位</th>
                                                     <th>単価</th>
@@ -448,11 +449,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 ${data.cost_master?.map(item => `
                                                     <tr>
                                                         <td>${item.ingredient_name || '-'}</td>
+                                                        <td>${item.suppliers?.name || '-'}</td>
                                                         <td>${item.capacity || '-'}</td>
                                                         <td>${item.unit || '-'}</td>
-                                                        <td>¥${item.unit_price || 0}</td>
+                                                        <td>¥${item.unit_price != null ? item.unit_price : 0}</td>
                                                     </tr>
-                                                `).join('') || '<tr><td colspan="4" class="text-center">データなし</td></tr>'}
+                                                `).join('') || '<tr><td colspan="5" class="text-center">データなし</td></tr>'}
                                             </tbody>
                                         </table>
                                     </div>

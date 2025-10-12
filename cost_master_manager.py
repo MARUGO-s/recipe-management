@@ -186,16 +186,10 @@ class CostMasterManager:
     def get_cost_info(self, ingredient_name: str) -> Optional[Dict]:
         """
         指定した材料の原価情報を取得
-        
-        Args:
-            ingredient_name: 材料名
-            
-        Returns:
-            原価情報の辞書、見つからない場合はNone
         """
         try:
             response = self.supabase.table('cost_master')\
-                .select('*')\
+                .select('*, suppliers(name)')\
                 .eq('ingredient_name', ingredient_name)\
                 .execute()
             
@@ -210,14 +204,10 @@ class CostMasterManager:
     def delete_cost(self, ingredient_name: str) -> bool:
         """
         原価表から材料を削除
-        
-        Args:
-            ingredient_name: 材料名
-            
-        Returns:
-            成功した場合True
         """
         try:
+            # 注意: この実装では同じ材料名を持つが取引先が違うものも全て削除される
+            # より厳密にするにはsupplier_idも指定する必要がある
             self.supabase.table('cost_master')\
                 .delete()\
                 .eq('ingredient_name', ingredient_name)\
@@ -233,16 +223,10 @@ class CostMasterManager:
     def list_all_costs(self, limit: int = 50) -> list:
         """
         原価表の全材料を取得
-        
-        Args:
-            limit: 取得件数の上限
-            
-        Returns:
-            原価情報のリスト
         """
         try:
             response = self.supabase.table('cost_master')\
-                .select('*')\
+                .select('*, suppliers(name)')\
                 .order('ingredient_name')\
                 .limit(limit)\
                 .execute()
@@ -256,17 +240,10 @@ class CostMasterManager:
     def search_costs(self, search_term: str, limit: int = 10) -> list:
         """
         材料名で原価表を検索（部分一致）
-        
-        Args:
-            search_term: 検索キーワード
-            limit: 取得件数の上限
-            
-        Returns:
-            原価情報のリスト
         """
         try:
             response = self.supabase.table('cost_master')\
-                .select('*')\
+                .select('*, suppliers(name)')\
                 .ilike('ingredient_name', f'%{search_term}%')\
                 .order('ingredient_name')\
                 .limit(limit)\
