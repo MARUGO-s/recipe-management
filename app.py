@@ -124,8 +124,7 @@ def admin_upload():
         if not file.filename.lower().endswith('.csv'):
             return jsonify({"error": "CSVファイルのみアップロード可能です"}), 400
         
-        # CSVファイルの読み込みとデータベースへの保存
-        csv_data = file.read().decode('utf-8')
+        csv_data = file.read().decode('utf-8-sig')
         csv_reader = csv.DictReader(io.StringIO(csv_data))
         
         # 列名の自動検出
@@ -160,10 +159,9 @@ def admin_upload():
         
         print(f"Column mapping: {column_mapping}")
         
-        count = 0
+        items_dict = {}
         for row in csv_reader:
             try:
-                print(f"Processing row: {row}")
                 # データの検証と変換
                 ingredient_name = row.get(column_mapping.get('ingredient_name', ''), '').strip()
                 unit_price = row.get(column_mapping.get('unit_price', ''), '').strip()
@@ -172,7 +170,7 @@ def admin_upload():
                     print(f"Skipping row due to missing ingredient_name or unit_price: {row}")
                     continue
                 
-                # Supabaseにデータを挿入
+                # Supabaseに挿入するデータを作成
                 data = {
                     'ingredient_name': ingredient_name,
                     'capacity': float(row.get(column_mapping.get('capacity', ''), 1)),
@@ -180,13 +178,20 @@ def admin_upload():
                     'unit_price': float(unit_price),
                     'updated_at': datetime.now().isoformat()
                 }
-                print(f"Data to upsert: {data}")
-                supabase.table('cost_master').upsert(data, on_conflict='ingredient_name').execute()
-                count += 1
+                # 辞書を使って重複を除去（後のものが優先される）
+                items_dict[ingredient_name] = data
+
             except (ValueError, KeyError) as e:
                 print(f"Skipping row due to error: {e}. Row data: {row}")
                 continue
         
+        items_to_upsert = list(items_dict.values())
+        count = 0
+        if items_to_upsert:
+            print(f"Upserting {len(items_to_upsert)} unique items in a batch.")
+            result = supabase.table('cost_master').upsert(items_to_upsert, on_conflict='ingredient_name').execute()
+            count = len(result.data)
+
         return jsonify({"success": True, "count": count})
     
     except Exception as e:
@@ -211,7 +216,7 @@ def admin_upload_transaction():
             return jsonify({"error": "CSVファイルのみアップロード可能です"}), 400
         
         # CSVファイルの読み込み
-        csv_data = file.read().decode('utf-8')
+        csv_data = file.read().decode('utf-8-sig')
         csv_reader = csv.DictReader(io.StringIO(csv_data))
         
         # 列マッピング（デフォルト）
@@ -346,21 +351,30 @@ def admin_upload_transaction():
                 print(f"行処理エラー: {e}")
                 continue
         
-        # データベースに保存
+        # データベースに一括で保存
         saved_count = 0
-        for material_data in extracted_materials.values():
+        items_to_upsert = list(extracted_materials.values())
+        
+        if items_to_upsert:
             try:
-                result = supabase.table('cost_master').upsert({
-                    'ingredient_name': material_data['name'],
-                    'capacity': material_data['capacity'],
-                    'unit': material_data['unit'],
-                    'unit_price': material_data['price'],
-                    'updated_at': datetime.now().isoformat()
-                }, on_conflict='ingredient_name').execute()
-                saved_count += 1
+                print(f"Upserting {len(items_to_upsert)} unique items from transactions in a batch.")
+                
+                # Supabaseに渡す形式に変換
+                supabase_items = [
+                    {
+                        'ingredient_name': item['name'],
+                        'capacity': item['capacity'],
+                        'unit': item['unit'],
+                        'unit_price': item['price'],
+                        'updated_at': datetime.now().isoformat()
+                    }
+                    for item in items_to_upsert
+                ]
+                
+                result = supabase.table('cost_master').upsert(supabase_items, on_conflict='ingredient_name').execute()
+                saved_count = len(result.data)
             except Exception as e:
-                print(f"保存エラー: {e}")
-                continue
+                print(f"一括保存エラー: {e}")
         
         return jsonify({
             "success": True, 

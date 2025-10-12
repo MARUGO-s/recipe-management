@@ -261,26 +261,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // テンプレートダウンロード
     function downloadTemplate() {
-        const templateType = document.querySelector('input[name="templateType"]:checked').value;
-        
-        fetch(`/admin/template?type=${templateType}`)
-            .then(response => response.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `cost_master_template_${templateType}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                
-                showStatus('success', 'テンプレートをダウンロードしました。');
-            })
-            .catch(error => {
-                showStatus('error', 'テンプレートのダウンロードに失敗しました。');
-                console.error('Download error:', error);
-            });
+        try {
+            const templateType = document.querySelector('input[name=\"templateType\"]:checked').value;
+            const downloadUrl = `/admin/template?type=${templateType}`;
+            window.location.href = downloadUrl;
+            
+            // ユーザーへのフィードバック（ダウンロードが開始されたことを示す）
+            showStatus('info', 'テンプレートのダウンロードを開始します...');
+
+        } catch (error) {
+            showStatus('error', 'テンプレートのダウンロードに失敗しました。');
+            console.error('Download error:', error);
+        }
     }
 
     // 取引データテンプレートダウンロード
