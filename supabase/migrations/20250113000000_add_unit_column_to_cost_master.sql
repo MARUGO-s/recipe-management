@@ -15,6 +15,6 @@ ALTER COLUMN unit_column SET DEFAULT '個';
 CREATE INDEX IF NOT EXISTS idx_cost_master_unit_column ON public.cost_master(unit_column);
 
 -- コメントを追加
-COMMENT ON COLUMN public.cost_master.unit_column IS 'CSVの単位列から抽出した単位情報';
-COMMENT ON COLUMN public.cost_master.capacity IS '材料の容量（包装容量）';
-COMMENT ON COLUMN public.cost_master.unit IS '容量の単位（g, ml, 個など）';
+COMMENT ON COLUMN public.cost_master.unit_column IS 'CSVの単位列から抽出した単位情報（変換せずそのまま保持: PC, kg, L など）';
+COMMENT ON COLUMN public.cost_master.capacity IS '材料の容量（包装容量、kg→g, L→mlに変換済み）';
+COMMENT ON COLUMN public.cost_master.unit IS '容量の単位（g, ml, 個など、変換済み）';

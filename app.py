@@ -72,10 +72,13 @@ def extract_capacity_from_spec(spec_text, product_name="", unit_column=""):
     Args:
         spec_text: 規格テキスト
         product_name: 商品名
-        unit_column: CSVの単位列の内容
+        unit_column: CSVの単位列の内容（そのまま保持、変換しない）
     
     Returns:
         tuple: (capacity, unit, unit_column)
+            - capacity: 容量の数値（kg→g, L→mlに変換済み）
+            - unit: 容量の単位（g, ml, 個など、変換済み）
+            - unit_column: CSVの単位列をそのまま保持（PC, kg, Lなど、変換しない）
     """
     if not spec_text:
         spec_text = ""
@@ -106,7 +109,8 @@ def extract_capacity_from_spec(spec_text, product_name="", unit_column=""):
         match = re.search(pattern, spec_cleaned, re.IGNORECASE)
         if match:
             capacity, unit = converter(match)
-            return (capacity, unit, unit_column)
+            # unit_columnはそのまま返す（変換しない）
+            return (capacity, unit, unit_column.strip() if unit_column else "")
     
     # 商品名から容量を抽出（規格で見つからない場合）
     if product_name:
@@ -114,11 +118,14 @@ def extract_capacity_from_spec(spec_text, product_name="", unit_column=""):
             match = re.search(pattern, product_name, re.IGNORECASE)
             if match:
                 capacity, unit = converter(match)
-                return (capacity, unit, unit_column)
+                # unit_columnはそのまま返す（変換しない）
+                return (capacity, unit, unit_column.strip() if unit_column else "")
     
-    # デフォルト値（単位列があれば使用、なければ'個'）
-    default_unit = unit_column.strip() if unit_column else '個'
-    return (1, default_unit, unit_column)
+    # デフォルト値
+    # 規格や商品名から容量が抽出できない場合
+    # - unit: 容量の単位として'個'を使用
+    # - unit_column: CSVの単位列をそのまま保持（変換しない）
+    return (1, '個', unit_column.strip() if unit_column else "")
 
 
 def get_user_state(user_id):
