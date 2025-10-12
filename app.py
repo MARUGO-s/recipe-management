@@ -1079,7 +1079,9 @@ def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, 
             'ingredient_name': ingredient['name'],
             'quantity': ingredient['quantity'],
             'unit': ingredient['unit'],
-            'cost': ingredient['cost']
+            'cost': ingredient['cost'],
+            'capacity': ingredient.get('capacity', 1),
+            'capacity_unit': ingredient.get('capacity_unit', '個')
         }
         supabase.table('ingredients').insert(ingredient_data).execute()
     

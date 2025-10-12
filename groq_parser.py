@@ -44,9 +44,19 @@ class GroqRecipeParser:
 1. recipe_name: 料理名（文字列）
 2. servings: 何人前のレシピか（整数）
 3. ingredients: 材料リスト（配列）
-   - 各材料は以下の形式: {{"name": "材料名", "quantity": 数値, "unit": "単位"}}
+   - 各材料は以下の形式: {{"name": "材料名", "quantity": 数値, "unit": "単位", "capacity": 数値, "capacity_unit": "単位"}}
    - quantityは必ず数値型（float）にしてください
    - unitは「個」「g」「ml」「本」「玉」「丁」「袋」「大さじ」「小さじ」「カップ」などの単位文字列
+   - capacityは材料の包装容量（例: 500gパックの場合は500）
+   - capacity_unitは包装容量の単位（例: g, ml, 個）
+
+【容量・規格抽出の重要な注意事項】
+- 材料名や説明に容量が含まれている場合は必ず抽出してください
+- 例: 「トマト缶 400g」→ name: "トマト缶", capacity: 400, capacity_unit: "g"
+- 例: 「牛乳 1Lパック」→ name: "牛乳", capacity: 1000, capacity_unit: "ml"
+- 例: 「玉ねぎ 500g」→ name: "玉ねぎ", capacity: 500, capacity_unit: "g"
+- 容量情報がない場合は、capacity: 1, capacity_unit: "個" としてください
+- 「×入数」形式（例: 750ml×12本）の場合は、個別容量（750ml）を抽出してください
 
 【重要な注意事項】
 - 出力は必ず有効なJSON形式にしてください
@@ -63,8 +73,8 @@ class GroqRecipeParser:
   "recipe_name": "料理名",
   "servings": 2,
   "ingredients": [
-    {{"name": "材料名1", "quantity": 1.0, "unit": "個"}},
-    {{"name": "材料名2", "quantity": 200.0, "unit": "g"}}
+    {{"name": "材料名1", "quantity": 1.0, "unit": "個", "capacity": 500, "capacity_unit": "g"}},
+    {{"name": "材料名2", "quantity": 200.0, "unit": "g", "capacity": 1000, "capacity_unit": "g"}}
   ]
 }}
 """
@@ -144,6 +154,11 @@ class GroqRecipeParser:
                 return False
             if "unit" not in ingredient or not ingredient["unit"]:
                 return False
+            # 容量情報のチェック（オプション）
+            if "capacity" not in ingredient or not isinstance(ingredient["capacity"], (int, float)):
+                ingredient["capacity"] = 1  # デフォルト値
+            if "capacity_unit" not in ingredient or not ingredient["capacity_unit"]:
+                ingredient["capacity_unit"] = "個"  # デフォルト値
         
         return True
 
@@ -156,10 +171,10 @@ if __name__ == "__main__":
     カレー（2人前）
     
     材料:
-    玉ねぎ 1個
-    にんじん 1本
+    玉ねぎ 500gパック 1個
+    にんじん 1kg袋 1本
     じゃがいも 2個
-    豚肉 200g
+    豚バラ肉 1kg 200g
     カレールウ 4皿分
     水 400ml
     """
