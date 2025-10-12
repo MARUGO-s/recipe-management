@@ -1153,9 +1153,19 @@ def handle_search_ingredient(event, search_term: str):
             
             # 単位情報の表示
             unit_column = cost.get('unit_column', '')
-            unit_display = f"{cost['capacity']}{cost['unit']}"
-            if unit_column and unit_column != cost['unit']:
-                unit_display += f" (単位列: {unit_column})"
+            capacity = cost.get('capacity', 1)
+            unit = cost.get('unit', '個')
+            
+            # 容量と単位の表示
+            unit_display = f"{capacity}{unit}"
+            
+            # 単位列が存在し、かつunitと異なる場合は追加表示
+            if unit_column:
+                if unit_column != unit:
+                    unit_display += f" (単位列: {unit_column})"
+                else:
+                    # 同じ場合でも単位列として明示
+                    unit_display += f" (単位列: {unit_column})"
             
             response = f"""📋 {ingredient_name}
 
@@ -1178,9 +1188,17 @@ def handle_search_ingredient(event, search_term: str):
 
                 # 単位情報の表示
                 unit_column = cost.get('unit_column', '')
-                unit_display = f"{cost['capacity']}{cost['unit']}"
-                if unit_column and unit_column != cost['unit']:
-                    unit_display += f" (単位列: {unit_column})"
+                capacity = cost.get('capacity', 1)
+                unit = cost.get('unit', '個')
+                
+                unit_display = f"{capacity}{unit}"
+                
+                # 単位列が存在する場合は追加表示
+                if unit_column:
+                    if unit_column != unit:
+                        unit_display += f" (単位列: {unit_column})"
+                    else:
+                        unit_display += f" (単位列: {unit_column})"
                 
                 response += f"{i}. {ingredient_name}{supplier_str}\n"
                 response += f"   {unit_display} = ¥{cost['unit_price']:.0f}\n\n"
@@ -1404,9 +1422,17 @@ def handle_list_cost_command(event):
         for i, cost in enumerate(costs, 1):
             # 単位情報の表示
             unit_column = cost.get('unit_column', '')
-            unit_display = f"{cost['capacity']}{cost['unit']}"
-            if unit_column and unit_column != cost['unit']:
-                unit_display += f" (単位列: {unit_column})"
+            capacity = cost.get('capacity', 1)
+            unit = cost.get('unit', '個')
+            
+            unit_display = f"{capacity}{unit}"
+            
+            # 単位列が存在する場合は追加表示
+            if unit_column:
+                if unit_column != unit:
+                    unit_display += f" (単位列: {unit_column})"
+                else:
+                    unit_display += f" (単位列: {unit_column})"
             
             response += f"{i}. {cost['ingredient_name']}\n"
             response += f"   {unit_display} = ¥{cost['unit_price']:.0f}\n"
