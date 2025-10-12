@@ -1187,8 +1187,11 @@ def handle_search_ingredient(event, search_term: str):
             # 単価は整数で表示（小数点以下を削除）
             unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
             
+            # 容量表示の調整（1または空の場合は容量を表示しない）
+            capacity_display = f"【容量】{capacity_str}" if capacity_str else ""
+            
             response = f"""📋 {ingredient_name}
-
+{capacity_display}
 【単位】{unit_display}
 【単価】¥{unit_price}"""
             
@@ -1232,7 +1235,11 @@ def handle_search_ingredient(event, search_term: str):
                 unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
                 
                 response += f"{i}. {ingredient_name}{supplier_str}\n"
-                response += f"   {unit_display} = ¥{unit_price}"
+                # 容量がある場合のみ表示
+                if capacity_str:
+                    response += f"   容量: {capacity_str}, 単位: {unit_display} = ¥{unit_price}"
+                else:
+                    response += f"   単位: {unit_display} = ¥{unit_price}"
                 
                 # 規格がある場合は表示
                 if cost.get('spec'):
