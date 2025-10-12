@@ -1039,9 +1039,9 @@ def handle_text_message(event):
   例: 「削除 トマト」
 ・一覧: 「原価一覧」
 
-🎯 UI機能:
-・「材料追加」→ ボタンで簡単に材料を追加
-・「材料を追加」→ 同上
+# 🎯 UI機能（一時的に無効化）
+# ・「材料追加」→ ボタンで簡単に材料を追加
+# ・「材料を追加」→ 同上
 
 ※原価表に登録されていない材料は計算されません"""
         
@@ -1071,10 +1071,10 @@ def handle_text_message(event):
         handle_list_cost_command(event)
         return
     
-    # 材料追加UIコマンド
-    if text == "材料追加" or text == "材料を追加":
-        send_ingredient_add_menu(event)
-        return
+    # 材料追加UIコマンド（一時的に無効化）
+    # if text == "材料追加" or text == "材料を追加":
+    #     send_ingredient_add_menu(event)
+    #     return
     
     # 材料名検索（その他のテキスト）
     # コマンド以外のテキストは、LLMで検索キーワードを抽出してから検索
@@ -1666,78 +1666,11 @@ def send_confirmation(event, ingredient_name, price):
         messages=[template_message]
     ))
 
-@handler.add(PostbackEvent)
-def handle_postback_event(event):
-    """Postbackイベントを処理"""
-    postback_data = event.postback.data
-    user_id = event.source.user_id
-    
-    print(f"Postback受信: {postback_data}")
-    
-    # データをパース
-    data_parts = postback_data.split('&')
-    action = None
-    step = None
-    ingredient = None
-    price = None
-    
-    for part in data_parts:
-        if '=' in part:
-            key, value = part.split('=', 1)
-            if key == 'action':
-                action = value
-            elif key == 'step':
-                step = value
-            elif key == 'ingredient':
-                ingredient = value
-            elif key == 'price':
-                price = value
-    
-    if action == 'add_ingredient':
-        if step == 'name':
-            # 材料名入力画面を送信
-            send_ingredient_name_input(event)
-    
-    elif action == 'list_ingredients':
-        # 材料一覧を表示
-        handle_list_cost_command(event)
-    
-    elif action == 'confirm_add':
-        # 材料を追加
-        if ingredient and price:
-            # 実際の追加処理
-            try:
-                # Groqで価格を解析
-                parsed_data = cost_master_manager.parse_cost_text(f"{ingredient} {price}")
-                if parsed_data:
-                    success = cost_master_manager.add_or_update_cost(
-                        parsed_data['ingredient_name'],
-                        parsed_data['capacity'],
-                        parsed_data['unit'],
-                        parsed_data['unit_price']
-                    )
-                    
-                    if success:
-                        reply_text = f"✅ {ingredient} ({price}) を追加しました！"
-                    else:
-                        reply_text = f"❌ {ingredient} の追加に失敗しました"
-                else:
-                    reply_text = f"❌ 価格の解析に失敗しました: {price}"
-                    
-            except Exception as e:
-                reply_text = f"❌ エラーが発生しました: {str(e)}"
-            
-            line_bot_api.reply_message(ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
-            ))
-    
-    elif action == 'cancel_add':
-        reply_text = "材料追加をキャンセルしました"
-        line_bot_api.reply_message(ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=reply_text)]
-        ))
+# PostbackEventハンドラー（一時的に無効化）
+# @handler.add(PostbackEvent)
+# def handle_postback_event(event):
+#     """Postbackイベントを処理"""
+#     pass
 
 
 if __name__ == "__main__":
