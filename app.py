@@ -713,7 +713,7 @@ def admin_clear():
         message = f"データをクリアしました: {', '.join(deleted_items)}"
         return jsonify({"success": True, "message": message})
     
-        except Exception as e:
+    except Exception as e:
             print(f"クリアエラー: {e}")
             import traceback
             traceback.print_exc()
