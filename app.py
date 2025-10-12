@@ -1259,6 +1259,99 @@ def handle_text_message(event):
         print(f"⚠️ 材料検索スキップ: '{text}' (長さ: {len(text)})")
 
 
+def create_add_ingredient_flex_message(search_term):
+    """新規材料追加用のFlex Messageを作成"""
+    try:
+        # コンテンツを構築
+        contents = []
+        
+        # タイトル
+        contents.append({
+            "type": "text",
+            "text": "➕ 新規材料追加",
+            "weight": "bold",
+            "size": "lg",
+            "color": "#FF6B6B"
+        })
+        
+        # 材料名
+        contents.append({
+            "type": "text",
+            "text": f"材料名: {search_term}",
+            "size": "md",
+            "color": "#333333",
+            "margin": "md"
+        })
+        
+        # 説明
+        contents.append({
+            "type": "text",
+            "text": "この材料は原価表に登録されていません。\n以下の形式で追加してください：",
+            "size": "sm",
+            "color": "#666666",
+            "margin": "md",
+            "wrap": True
+        })
+        
+        # 例
+        contents.append({
+            "type": "text",
+            "text": "例: 「追加 トマト 100円/個」\n例: 「追加 玉ねぎ 200円/kg」",
+            "size": "sm",
+            "color": "#1DB446",
+            "margin": "md",
+            "wrap": True
+        })
+        
+        # フッター（クイック追加ボタン）
+        footer_contents = [
+            {
+                "type": "button",
+                "style": "primary",
+                "height": "sm",
+                "action": {
+                    "type": "postback",
+                    "label": f"追加 {search_term} 100円/個",
+                    "data": f"quick_add={search_term}|100|個",
+                    "displayText": f"追加 {search_term} 100円/個"
+                }
+            },
+            {
+                "type": "button",
+                "style": "secondary",
+                "height": "sm",
+                "action": {
+                    "type": "postback",
+                    "label": f"追加 {search_term} 200円/kg",
+                    "data": f"quick_add={search_term}|200|kg",
+                    "displayText": f"追加 {search_term} 200円/kg"
+                }
+            }
+        ]
+        
+        # Flex Messageを構築
+        flex_container = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": contents,
+                "paddingAll": "16px"
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": footer_contents,
+                "paddingAll": "8px"
+            }
+        }
+        
+        return flex_container
+        
+    except Exception as e:
+        print(f"新規追加Flex Message作成エラー: {e}")
+        return None
+
 def create_ingredient_flex_message(cost, is_single=True):
     """材料情報のFlex Messageを作成"""
     try:
@@ -1378,9 +1471,22 @@ def handle_search_ingredient(event, search_term: str):
         print(f"📊 検索結果: {len(results) if results else 0}件")
         
         if not results:
-            line_bot_api.reply_message(ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=f"""「{search_term}」に一致する材料が見つかりませんでした。
+            # 材料が見つからない場合のFlex Messageを作成
+            add_flex_container = create_add_ingredient_flex_message(search_term)
+            
+            if add_flex_container:
+                line_bot_api.reply_message(ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[FlexMessage(
+                        alt_text=f"「{search_term}」の新規追加",
+                        contents=FlexContainer.from_dict(add_flex_container)
+                    )]
+                ))
+            else:
+                # Flex Message作成に失敗した場合はテキストで返信
+                line_bot_api.reply_message(ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=f"""「{search_term}」に一致する材料が見つかりませんでした。
 
 原価表に登録するには：
 
@@ -1391,7 +1497,7 @@ def handle_search_ingredient(event, search_term: str):
 💡 簡単形式（円は省略可）：
 ・「追加 {search_term} 100 個」
 ・「追加 {search_term} 200 kg」""")]
-            ))
+                ))
             return
         
         # 結果をFlex Messageで送信
@@ -1937,6 +2043,47 @@ def handle_postback_event(event):
                 line_bot_api.reply_message(ReplyMessageRequest(
                     reply_token=event.reply_token,
                     messages=[TextMessage(text="材料が見つかりませんでした。")]
+                ))
+        
+        # クイック追加の場合
+        elif data.startswith("quick_add="):
+            parts = data.split("=")[1].split("|")
+            if len(parts) == 3:
+                ingredient_name = parts[0]
+                price = parts[1]
+                unit = parts[2]
+                
+                print(f"⚡ クイック追加: {ingredient_name} {price}円/{unit}")
+                
+                # クイック追加を実行
+                success = cost_master_manager.add_or_update_cost(
+                    ingredient_name=ingredient_name,
+                    capacity=1.0,
+                    unit=unit,
+                    unit_price=float(price),
+                    unit_column=unit
+                )
+                
+                if success:
+                    reply_text = f"""✅ 材料を追加しました！
+
+📋 {ingredient_name}
+【容量】1
+【単位】{unit}
+【単価】¥{price}
+
+追加完了です！"""
+                else:
+                    reply_text = f"❌ 材料の追加に失敗しました。\n「追加 {ingredient_name} {price}円/{unit}」で再試行してください。"
+                
+                line_bot_api.reply_message(ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=reply_text)]
+                ))
+            else:
+                line_bot_api.reply_message(ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="クイック追加のデータ形式が不正です。")]
                 ))
         else:
             # その他のPostbackイベント
