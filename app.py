@@ -801,6 +801,8 @@ def handle_text_message(event):
 ・追加: 「追加 材料名 価格/単位」
   例: 「追加 トマト 100円/個」
   例: 「追加 豚肉 300円/100g」
+  例: 「追加 牛乳 1L 200円」
+  例: 「追加 米 5kg 2000円」
 ・確認: 「確認 材料名」
   例: 「確認 トマト」
 ・削除: 「削除 材料名」
@@ -876,9 +878,9 @@ def handle_add_cost_command(event, text: str):
         # 原価表に追加
         success = cost_master_manager.add_or_update_cost(
             cost_data['ingredient_name'],
-            cost_data['unit_price'],
-            cost_data['reference_unit'],
-            cost_data['reference_quantity']
+            cost_data['capacity'],
+            cost_data['unit'],
+            cost_data['unit_price']
         )
         
         if success:
@@ -891,8 +893,8 @@ def handle_add_cost_command(event, text: str):
             response = f"""✅ 原価表に登録しました
 
 【材料名】{cost_data['ingredient_name']}
-【単価】¥{cost_data['unit_price']:.2f}
-【基準】{cost_data['reference_quantity']}{cost_data['reference_unit']}あたり"""
+【容量】{cost_data['capacity']}{cost_data['unit']}
+【単価】¥{cost_data['unit_price']:.2f}"""
             
             line_bot_api.push_message(
                 event.source.user_id,
@@ -935,8 +937,8 @@ def handle_check_cost_command(event, text: str):
             response = f"""📋 原価情報
 
 【材料名】{cost_info['ingredient_name']}
+【容量】{cost_info['capacity']}{cost_info['unit']}
 【単価】¥{cost_info['unit_price']:.2f}
-【基準】{cost_info['reference_quantity']}{cost_info['reference_unit']}あたり
 【更新日】{cost_info.get('updated_at', 'N/A')}"""
             
             line_bot_api.reply_message(
@@ -1030,7 +1032,7 @@ def handle_list_cost_command(event):
         
         for i, cost in enumerate(costs, 1):
             response += f"{i}. {cost['ingredient_name']}\n"
-            response += f"   ¥{cost['unit_price']:.0f}/{cost['reference_quantity']}{cost['reference_unit']}\n"
+            response += f"   {cost['capacity']}{cost['unit']} = ¥{cost['unit_price']:.0f}\n"
             
             if i >= 20:  # LINEメッセージの長さ制限対策
                 response += f"\n... 他{len(costs) - 20}件"

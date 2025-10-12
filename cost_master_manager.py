@@ -37,9 +37,9 @@ class CostMasterManager:
         Returns:
             {
                 "ingredient_name": "材料名",
-                "unit_price": 100.0,
-                "reference_unit": "個",
-                "reference_quantity": 1.0
+                "capacity": 100.0,
+                "unit": "g",
+                "unit_price": 100.0
             }
         """
         try:
@@ -47,16 +47,18 @@ class CostMasterManager:
 
 【抽出する情報】
 1. ingredient_name: 材料名（文字列）
-2. unit_price: 単価（数値、円）
-3. reference_unit: 基準単位（「個」「g」「ml」「本」「玉」「丁」「袋」など）
-4. reference_quantity: 基準数量（数値）
+2. capacity: 容量・包装量（数値）
+3. unit: 単位（「個」「g」「ml」「本」「玉」「丁」「袋」など）
+4. unit_price: その容量あたりの単価（数値、円）
 
 【重要な注意事項】
 - 出力は必ず有効なJSON形式にしてください
 - 余計な説明やマークダウンは含めず、JSONのみを出力してください
-- unit_priceとreference_quantityは必ず数値型（float）にしてください
-- 価格が「100円/個」のような形式の場合、100円が1個あたりの価格です
-- 価格が「300円/100g」のような形式の場合、300円が100gあたりの価格です
+- capacity と unit_price は必ず数値型（float）にしてください
+- 価格が「100円/個」のような形式の場合、capacity: 1, unit: "個", unit_price: 100
+- 価格が「300円/100g」のような形式の場合、capacity: 100, unit: "g", unit_price: 300
+- 価格が「1kg 1000円」のような形式の場合、capacity: 1000, unit: "g", unit_price: 1000
+- 「kg」は「g」に、「L」は「ml」に変換してください
 
 【入力テキスト】
 {text}
@@ -64,19 +66,25 @@ class CostMasterManager:
 【出力JSON形式】
 {{
   "ingredient_name": "材料名",
-  "unit_price": 100.0,
-  "reference_unit": "個",
-  "reference_quantity": 1.0
+  "capacity": 1.0,
+  "unit": "個",
+  "unit_price": 100.0
 }}
 
 例1: 「トマト 100円/個」
-→ {{"ingredient_name": "トマト", "unit_price": 100.0, "reference_unit": "個", "reference_quantity": 1.0}}
+→ {{"ingredient_name": "トマト", "capacity": 1.0, "unit": "個", "unit_price": 100.0}}
 
 例2: 「豚バラ肉 300円/100g」
-→ {{"ingredient_name": "豚バラ肉", "unit_price": 300.0, "reference_unit": "g", "reference_quantity": 100.0}}
+→ {{"ingredient_name": "豚バラ肉", "capacity": 100.0, "unit": "g", "unit_price": 300.0}}
 
 例3: 「キャベツ1玉150円」
-→ {{"ingredient_name": "キャベツ", "unit_price": 150.0, "reference_unit": "玉", "reference_quantity": 1.0}}
+→ {{"ingredient_name": "キャベツ", "capacity": 1.0, "unit": "個", "unit_price": 150.0}}
+
+例4: 「牛乳 1L 200円」
+→ {{"ingredient_name": "牛乳", "capacity": 1000.0, "unit": "ml", "unit_price": 200.0}}
+
+例5: 「米 5kg 2000円」
+→ {{"ingredient_name": "米", "capacity": 5000.0, "unit": "g", "unit_price": 2000.0}}
 """
             
             chat_completion = self.groq_client.chat.completions.create(
@@ -128,7 +136,7 @@ class CostMasterManager:
         if not isinstance(data, dict):
             return False
         
-        required_fields = ["ingredient_name", "unit_price", "reference_unit", "reference_quantity"]
+        required_fields = ["ingredient_name", "capacity", "unit", "unit_price"]
         for field in required_fields:
             if field not in data:
                 return False
@@ -136,27 +144,27 @@ class CostMasterManager:
         if not data["ingredient_name"] or not isinstance(data["ingredient_name"], str):
             return False
         
+        if not isinstance(data["capacity"], (int, float)) or data["capacity"] <= 0:
+            return False
+        
+        if not data["unit"] or not isinstance(data["unit"], str):
+            return False
+        
         if not isinstance(data["unit_price"], (int, float)) or data["unit_price"] <= 0:
-            return False
-        
-        if not data["reference_unit"] or not isinstance(data["reference_unit"], str):
-            return False
-        
-        if not isinstance(data["reference_quantity"], (int, float)) or data["reference_quantity"] <= 0:
             return False
         
         return True
     
-    def add_or_update_cost(self, ingredient_name: str, unit_price: float, 
-                           reference_unit: str, reference_quantity: float) -> bool:
+    def add_or_update_cost(self, ingredient_name: str, capacity: float, 
+                           unit: str, unit_price: float) -> bool:
         """
         原価表に材料を追加または更新
         
         Args:
             ingredient_name: 材料名
+            capacity: 容量
+            unit: 単位
             unit_price: 単価
-            reference_unit: 基準単位
-            reference_quantity: 基準数量
             
         Returns:
             成功した場合True
@@ -168,11 +176,13 @@ class CostMasterManager:
                 .eq('ingredient_name', ingredient_name)\
                 .execute()
             
+            from datetime import datetime
             data = {
                 'ingredient_name': ingredient_name,
+                'capacity': capacity,
+                'unit': unit,
                 'unit_price': unit_price,
-                'reference_unit': reference_unit,
-                'reference_quantity': reference_quantity
+                'updated_at': datetime.now().isoformat()
             }
             
             if existing.data and len(existing.data) > 0:
