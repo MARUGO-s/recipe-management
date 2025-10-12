@@ -453,11 +453,15 @@ document.addEventListener('DOMContentLoaded', function() {
                                                         parseInt(capacity).toString() : 
                                                         capacity.toString();
                                                     
-                                                    // 単位情報の表示（単位列がある場合は追加表示）
-                                                    const unitColumn = item.unit_column || '';
-                                                    let unitDisplay = item.unit || '-';
-                                                    if (unitColumn && unitColumn !== item.unit) {
-                                                        unitDisplay += ` (単位列: ${unitColumn})`;
+                                                    // 単位情報の表示（unit_columnを優先）
+                                                    // unit_columnがnullでない場合は、空文字列でもそれを尊重する
+                                                    let unitDisplay;
+                                                    if (item.unit_column !== null && item.unit_column !== undefined) {
+                                                        // unit_columnが存在する場合は、それを表示（空文字列の場合は容量のみ）
+                                                        unitDisplay = item.unit_column || capacityDisplay;
+                                                    } else {
+                                                        // unit_columnが存在しない場合は、unitを表示
+                                                        unitDisplay = item.unit || '-';
                                                     }
                                                     
                                                     // 単価の表示（小数点以下を削除）

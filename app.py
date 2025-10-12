@@ -1152,7 +1152,7 @@ def handle_search_ingredient(event, search_term: str):
             supplier_name = cost.get('suppliers', {}).get('name') if cost.get('suppliers') else None
             
             # 単位情報の表示
-            unit_column = cost.get('unit_column', '')
+            unit_column = cost.get('unit_column')  # Noneの可能性も考慮
             capacity = cost.get('capacity', 1)
             unit = cost.get('unit', '個')
             
@@ -1162,9 +1162,10 @@ def handle_search_ingredient(event, search_term: str):
             else:
                 capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
             
-            # 単位列を必ず表示
-            if unit_column:
-                unit_display = f"{capacity_str}{unit_column}"
+            # 単位列を優先表示（unit_columnが存在する場合は必ずそれを使う）
+            # unit_columnがNoneでない場合は、空文字列でもそれを尊重する
+            if unit_column is not None:
+                unit_display = f"{capacity_str}{unit_column}" if unit_column else capacity_str
             else:
                 unit_display = f"{capacity_str}{unit}"
             
@@ -1191,7 +1192,7 @@ def handle_search_ingredient(event, search_term: str):
                 supplier_str = f"（{supplier_name}）" if supplier_name else ""
 
                 # 単位情報の表示
-                unit_column = cost.get('unit_column', '')
+                unit_column = cost.get('unit_column')  # Noneの可能性も考慮
                 capacity = cost.get('capacity', 1)
                 unit = cost.get('unit', '個')
                 
@@ -1201,9 +1202,10 @@ def handle_search_ingredient(event, search_term: str):
                 else:
                     capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
                 
-                # 単位列を必ず表示
-                if unit_column:
-                    unit_display = f"{capacity_str}{unit_column}"
+                # 単位列を優先表示（unit_columnが存在する場合は必ずそれを使う）
+                # unit_columnがNoneでない場合は、空文字列でもそれを尊重する
+                if unit_column is not None:
+                    unit_display = f"{capacity_str}{unit_column}" if unit_column else capacity_str
                 else:
                     unit_display = f"{capacity_str}{unit}"
                 
