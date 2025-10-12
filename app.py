@@ -1180,9 +1180,9 @@ def handle_search_ingredient(event, search_term: str):
             # 単位列を優先表示（unit_columnが存在する場合は必ずそれを使う）
             # unit_columnがNoneでない場合は、空文字列でもそれを尊重する
             if unit_column is not None:
-                unit_display = f"{capacity_str}{unit_column}" if unit_column else capacity_str
+                unit_display = unit_column if unit_column else "個"  # 単位のみ表示
             else:
-                unit_display = f"{capacity_str}{unit}"
+                unit_display = unit  # 単位のみ表示
             
             # 単価は整数で表示（小数点以下を削除）
             unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
@@ -1227,9 +1227,9 @@ def handle_search_ingredient(event, search_term: str):
                 # 単位列を優先表示（unit_columnが存在する場合は必ずそれを使う）
                 # unit_columnがNoneでない場合は、空文字列でもそれを尊重する
                 if unit_column is not None:
-                    unit_display = f"{capacity_str}{unit_column}" if unit_column else capacity_str
+                    unit_display = unit_column if unit_column else "個"  # 単位のみ表示
                 else:
-                    unit_display = f"{capacity_str}{unit}"
+                    unit_display = unit  # 単位のみ表示
                 
                 # 単価は整数で表示
                 unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
@@ -1475,11 +1475,11 @@ def handle_list_cost_command(event):
             else:
                 capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
             
-            # 単位列を必ず表示
+            # 単位列を必ず表示（単位のみ）
             if unit_column:
-                unit_display = f"{capacity_str}{unit_column}"
+                unit_display = unit_column
             else:
-                unit_display = f"{capacity_str}{unit}"
+                unit_display = unit
             
             # 単価は整数で表示
             unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
