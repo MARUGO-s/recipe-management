@@ -327,6 +327,47 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Custom JS -->
+    <script>
+        // デバッグ用: ページ読み込み確認
+        console.log('管理画面JavaScript読み込み開始');
+        
+        // 基本的なボタン機能テスト
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded実行');
+            
+            // テンプレートダウンロードボタンのテスト
+            const downloadBtn = document.getElementById('downloadBtn');
+            if (downloadBtn) {
+                console.log('ダウンロードボタン見つかりました');
+                downloadBtn.addEventListener('click', function() {
+                    console.log('ダウンロードボタンクリック');
+                    window.location.href = '/admin/template?type=basic';
+                });
+            } else {
+                console.error('ダウンロードボタンが見つかりません');
+            }
+            
+            // 統計更新ボタンのテスト
+            const refreshBtn = document.getElementById('refreshBtn');
+            if (refreshBtn) {
+                console.log('更新ボタン見つかりました');
+                refreshBtn.addEventListener('click', function() {
+                    console.log('更新ボタンクリック');
+                    fetch('/admin/stats')
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('統計データ:', data);
+                            document.getElementById('totalIngredients').textContent = data.ingredients || 0;
+                            document.getElementById('totalRecipes').textContent = data.recipes || 0;
+                            document.getElementById('lastUpdate').textContent = data.last_update || '-';
+                        })
+                        .catch(error => console.error('統計取得エラー:', error));
+                });
+            } else {
+                console.error('更新ボタンが見つかりません');
+            }
+        });
+    </script>
     <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 </body>
 </html>
