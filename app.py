@@ -85,9 +85,9 @@ def admin_upload():
                 # Supabaseにデータを挿入
                 result = supabase.table('cost_master').upsert({
                     'ingredient_name': row['ingredient_name'].strip(),
+                    'capacity': float(row.get('capacity', 1)),
+                    'unit': row.get('unit', '個').strip(),
                     'unit_price': float(row['unit_price']),
-                    'reference_unit': row.get('reference_unit', '個').strip(),
-                    'reference_quantity': float(row.get('reference_quantity', 1)),
                     'updated_at': datetime.now().isoformat()
                 }).execute()
                 
@@ -113,54 +113,54 @@ def admin_template():
             sample_data = [
                 {
                     'ingredient_name': 'トマト',
-                    'unit_price': 100,
-                    'reference_unit': '個',
-                    'reference_quantity': 1
+                    'capacity': 1,
+                    'unit': '個',
+                    'unit_price': 100
                 },
                 {
                     'ingredient_name': '玉ねぎ',
-                    'unit_price': 80,
-                    'reference_unit': '個',
-                    'reference_quantity': 1
+                    'capacity': 1,
+                    'unit': '個',
+                    'unit_price': 80
                 },
                 {
                     'ingredient_name': '豚バラ肉',
-                    'unit_price': 300,
-                    'reference_unit': '100g',
-                    'reference_quantity': 100
+                    'capacity': 100,
+                    'unit': 'g',
+                    'unit_price': 300
                 }
             ]
         else:  # advanced
             sample_data = [
                 {
                     'ingredient_name': 'トマト',
+                    'capacity': 1,
+                    'unit': '個',
                     'unit_price': 100,
-                    'reference_unit': '個',
-                    'reference_quantity': 1,
                     'category': '野菜',
                     'notes': '中玉トマト'
                 },
                 {
                     'ingredient_name': '玉ねぎ',
+                    'capacity': 1,
+                    'unit': '個',
                     'unit_price': 80,
-                    'reference_unit': '個',
-                    'reference_quantity': 1,
                     'category': '野菜',
                     'notes': '中サイズ'
                 },
                 {
                     'ingredient_name': '豚バラ肉',
+                    'capacity': 100,
+                    'unit': 'g',
                     'unit_price': 300,
-                    'reference_unit': '100g',
-                    'reference_quantity': 100,
                     'category': '肉類',
                     'notes': '国産'
                 },
                 {
                     'ingredient_name': '米',
+                    'capacity': 1000,
+                    'unit': 'g',
                     'unit_price': 200,
-                    'reference_unit': '1kg',
-                    'reference_quantity': 1000,
                     'category': '主食',
                     'notes': '新潟産コシヒカリ'
                 }
@@ -249,16 +249,16 @@ def admin_export():
         
         # CSVファイルの生成
         output = io.StringIO()
-        fieldnames = ['ingredient_name', 'unit_price', 'reference_unit', 'reference_quantity']
+        fieldnames = ['ingredient_name', 'capacity', 'unit', 'unit_price']
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
         
         for row in result.data:
             writer.writerow({
                 'ingredient_name': row.get('ingredient_name', ''),
-                'unit_price': row.get('unit_price', 0),
-                'reference_unit': row.get('reference_unit', ''),
-                'reference_quantity': row.get('reference_quantity', 1)
+                'capacity': row.get('capacity', 1),
+                'unit': row.get('unit', ''),
+                'unit_price': row.get('unit_price', 0)
             })
         
         csv_content = output.getvalue()
