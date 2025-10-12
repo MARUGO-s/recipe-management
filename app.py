@@ -1456,16 +1456,16 @@ def create_add_ingredient_flex_message(search_term):
         })
         
         # フッター（入力フォーム用ボタン）
+        add_form_url = "https://recipe-management-nd00.onrender.com/ingredient/form"
         footer_contents = [
             {
                 "type": "button",
                 "style": "primary",
                 "height": "sm",
                 "action": {
-                    "type": "postback",
+                    "type": "uri",
                     "label": "📝 詳細入力で追加",
-                    "data": f"add_form={search_term}",
-                    "displayText": f"詳細入力で追加: {search_term}"
+                    "uri": add_form_url
                 }
             },
             {
@@ -1565,15 +1565,15 @@ def create_ingredient_flex_message(cost, is_single=True):
         })
         
         # フッター（修正ボタン）
+        form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?id={cost['id']}"
         footer_contents = [{
             "type": "button",
             "style": "primary",
             "height": "sm",
             "action": {
-                "type": "postback",
-                "label": "修正",
-                "data": f"edit_ingredient={cost['id']}",
-                "displayText": f"修正: {ingredient_name}"
+                "type": "uri",
+                "label": "📝 修正",
+                "uri": form_url
             }
         }]
         
@@ -2156,70 +2156,8 @@ def handle_postback_event(event):
         
         data = event.postback.data
         
-        # 材料修正の場合
-        if data.startswith("edit_ingredient="):
-            ingredient_id = data.split("=")[1]
-            print(f"🔧 材料修正モード: ID={ingredient_id}")
-            
-            # 材料データを取得
-            response = supabase.table('cost_master').select('*').eq('id', ingredient_id).execute()
-            
-            if response.data:
-                cost = response.data[0]
-                
-                # 修正用のテキストメッセージを作成
-                ingredient_name = cost['ingredient_name']
-                capacity = cost.get('capacity', 1.0)
-                unit = cost.get('unit', '個')
-                unit_price = cost.get('unit_price', 0)
-                spec = cost.get('spec', '')
-                
-                reply_text = f"""📝 材料修正: {ingredient_name}
-
-現在の設定：
-・容量: {capacity}
-・単位: {unit}
-・単価: ¥{unit_price}
-・規格: {spec if spec else 'なし'}
-
-修正するには以下の形式で入力してください：
-「修正 {ingredient_name} 新しい単価円/新しい単位」
-
-例: 「修正 {ingredient_name} 200円/kg」"""
-                
-                line_bot_api.reply_message(ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text=reply_text)]
-                ))
-            else:
-                line_bot_api.reply_message(ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text="材料が見つかりませんでした。")]
-                ))
-        
-        # 詳細入力フォームの場合
-        elif data.startswith("add_form="):
-            search_term = data.split("=")[1]
-            print(f"📝 詳細入力フォーム: {search_term}")
-            
-            flex_container = create_input_form_flex_message(search_term)
-            
-            if flex_container:
-                line_bot_api.reply_message(ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[FlexMessage(
-                        alt_text=f"詳細入力で追加: {search_term}",
-                        contents=FlexContainer.from_dict(flex_container)
-                    )]
-                ))
-            else:
-                line_bot_api.reply_message(ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text=f"詳細入力フォームの表示に失敗しました。\n「追加 {search_term} 価格/単位」で直接入力してください。")]
-                ))
-        
         # クイック追加メニューの場合
-        elif data.startswith("quick_add_menu="):
+        if data.startswith("quick_add_menu="):
             search_term = data.split("=")[1]
             print(f"⚡ クイック追加メニュー: {search_term}")
             
