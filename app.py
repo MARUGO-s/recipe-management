@@ -8,7 +8,7 @@ import csv
 import io
 import re
 from datetime import datetime
-from flask import Flask, request, abort, render_template, jsonify, send_file
+from flask import Flask, request, abort, render_template, jsonify, send_file, redirect, url_for, flash
 from linebot.v3.webhook import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent, PostbackEvent
@@ -35,6 +35,11 @@ from supabase import create_client, Client
 load_dotenv()
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')
+
+# CSRF保護を有効化
+from flask_wtf.csrf import CSRFProtect
+csrf = CSRFProtect(app)
 
 # LINE Bot設定
 configuration = Configuration(access_token=os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
@@ -708,11 +713,136 @@ def admin_clear():
         message = f"データをクリアしました: {', '.join(deleted_items)}"
         return jsonify({"success": True, "message": message})
     
+        except Exception as e:
+            print(f"クリアエラー: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"データのクリアに失敗しました: {str(e)}"}), 500
+
+
+# ==================== 材料フォーム関連 ====================
+
+@app.route("/ingredient/form")
+def ingredient_form():
+    """材料追加・修正フォームの表示"""
+    try:
+        # URLパラメータから材料IDを取得（修正モードの場合）
+        ingredient_id = request.args.get('id')
+        is_edit = bool(ingredient_id)
+        ingredient_data = None
+        
+        if is_edit and ingredient_id:
+            # 既存データを取得
+            response = supabase.table('cost_master').select('*').eq('id', ingredient_id).execute()
+            if response.data:
+                ingredient_data = response.data[0]
+                # 取引先情報も取得
+                if ingredient_data.get('supplier_id'):
+                    supplier_response = supabase.table('suppliers').select('name').eq('id', ingredient_data['supplier_id']).execute()
+                    if supplier_response.data:
+                        ingredient_data['suppliers'] = supplier_response.data[0]
+        
+        return render_template('ingredient_form.html', 
+                             is_edit=is_edit, 
+                             ingredient_data=ingredient_data)
+        
     except Exception as e:
-        print(f"クリアエラー: {e}")
+        print(f"フォーム表示エラー: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": f"データのクリアに失敗しました: {str(e)}"}), 500
+        return render_template('ingredient_form.html', 
+                             is_edit=False, 
+                             ingredient_data=None,
+                             error_message="フォームの読み込みに失敗しました")
+
+
+@app.route("/ingredient/submit", methods=['POST'])
+def submit_ingredient_form():
+    """材料フォームの送信処理"""
+    try:
+        # フォームデータを取得
+        ingredient_name = request.form.get('ingredient_name', '').strip()
+        supplier_name = request.form.get('supplier', '').strip()
+        capacity = request.form.get('capacity', '')
+        unit = request.form.get('unit', '')
+        unit_column = request.form.get('unit_column', '').strip()
+        spec = request.form.get('spec', '').strip()
+        unit_price = request.form.get('unit_price', '')
+        is_edit = request.form.get('is_edit') == 'True'
+        ingredient_id = request.form.get('ingredient_id')
+        
+        # バリデーション
+        if not ingredient_name:
+            return render_template('ingredient_form.html',
+                                 is_edit=is_edit,
+                                 ingredient_data=None,
+                                 error_message="材料名は必須です")
+        
+        if not unit_price:
+            return render_template('ingredient_form.html',
+                                 is_edit=is_edit,
+                                 ingredient_data=None,
+                                 error_message="単価は必須です")
+        
+        try:
+            capacity = float(capacity) if capacity else 1.0
+            unit_price = float(unit_price)
+        except ValueError:
+            return render_template('ingredient_form.html',
+                                 is_edit=is_edit,
+                                 ingredient_data=None,
+                                 error_message="容量または単価の値が不正です")
+        
+        # 取引先の処理
+        supplier_id = None
+        if supplier_name:
+            # 取引先が存在するかチェック
+            supplier_response = supabase.table('suppliers').select('id').eq('name', supplier_name).execute()
+            if supplier_response.data:
+                supplier_id = supplier_response.data[0]['id']
+            else:
+                # 新規取引先を作成
+                new_supplier = supabase.table('suppliers').insert({
+                    'name': supplier_name,
+                    'created_at': datetime.now().isoformat()
+                }).execute()
+                supplier_id = new_supplier.data[0]['id']
+        
+        # データベースに保存
+        data = {
+            'ingredient_name': ingredient_name,
+            'capacity': capacity,
+            'unit': unit,
+            'unit_column': unit_column,
+            'spec': spec,
+            'unit_price': unit_price,
+            'supplier_id': supplier_id,
+            'updated_at': datetime.now().isoformat()
+        }
+        
+        if is_edit and ingredient_id:
+            # 更新
+            result = supabase.table('cost_master').update(data).eq('id', ingredient_id).execute()
+            success_message = f"「{ingredient_name}」の情報を更新しました"
+        else:
+            # 新規作成
+            data['created_at'] = datetime.now().isoformat()
+            result = supabase.table('cost_master').insert(data).execute()
+            success_message = f"「{ingredient_name}」を追加しました"
+        
+        return render_template('ingredient_form.html',
+                             is_edit=False,
+                             ingredient_data=None,
+                             success_message=success_message)
+        
+    except Exception as e:
+        print(f"フォーム送信エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return render_template('ingredient_form.html',
+                             is_edit=is_edit if 'is_edit' in locals() else False,
+                             ingredient_data=None,
+                             error_message="データの保存に失敗しました")
 
 @app.route("/health", methods=['GET'])
 def health_check():
@@ -1143,12 +1273,15 @@ def handle_search_ingredient(event, search_term: str):
         print(f"📊 検索結果: {len(results) if results else 0}件")
         
         if not results:
+            add_form_url = "https://recipe-management-nd00.onrender.com/ingredient/form"
             line_bot_api.reply_message(ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=[TextMessage(text=f"""「{search_term}」に一致する材料が見つかりませんでした。
 
-原価表に登録するには：
+📝 新規追加フォーム：
+{add_form_url}
 
+または、テキストで追加：
 ✅ 推奨形式：
 ・「追加 {search_term} 100円/個」
 ・「追加 {search_term} 200円/kg」
@@ -1204,6 +1337,10 @@ def handle_search_ingredient(event, search_term: str):
             
             if cost.get('updated_at'):
                 response += f"\n【更新日】{cost['updated_at'][:10]}"
+            
+            # フォームURLを追加
+            form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?id={cost['id']}"
+            response += f"\n\n📝 修正: {form_url}"
         else:
             # 複数候補がある場合
             response = f"🔍 「{search_term}」の検索結果（{len(results)}件）\n\n"
@@ -1245,7 +1382,9 @@ def handle_search_ingredient(event, search_term: str):
                 if cost.get('spec'):
                     response += f"\n   【規格】{cost['spec']}"
                 
-                response += "\n\n"
+                # 修正リンクを追加
+                form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?id={cost['id']}"
+                response += f"\n   📝 修正: {form_url}\n\n"
         
         line_bot_api.reply_message(ReplyMessageRequest(
             reply_token=event.reply_token,
