@@ -30,61 +30,92 @@ document.addEventListener('DOMContentLoaded', function() {
         clearDataBtn: !!clearDataBtn
     });
     
-    // 要素が見つからない場合はエラーメッセージを表示
-    const missingElements = [];
-    if (!uploadArea) missingElements.push('uploadArea');
-    if (!fileInput) missingElements.push('fileInput');
-    if (!uploadBtn) missingElements.push('uploadBtn');
-    if (!downloadBtn) missingElements.push('downloadBtn');
-    if (!downloadTransactionBtn) missingElements.push('downloadTransactionBtn');
-    if (!refreshBtn) missingElements.push('refreshBtn');
-    if (!viewDataBtn) missingElements.push('viewDataBtn');
-    if (!exportDataBtn) missingElements.push('exportDataBtn');
-    if (!clearDataBtn) missingElements.push('clearDataBtn');
+    // 重要な要素のみチェック
+    const criticalElements = [];
+    if (!uploadArea) criticalElements.push('uploadArea');
+    if (!fileInput) criticalElements.push('fileInput');
+    if (!uploadBtn) criticalElements.push('uploadBtn');
     
-    if (missingElements.length > 0) {
-        console.error('❌ Missing elements:', missingElements);
-        return; // 重要な要素が見つからない場合は処理を停止
+    if (criticalElements.length > 0) {
+        console.error('❌ Critical elements missing:', criticalElements);
+        console.log('⚠️ 重要な要素が見つからないため、一部機能が制限されます');
+    } else {
+        console.log('✅ All critical elements found');
+    }
+    
+    // オプション要素の確認
+    const optionalElements = [];
+    if (!downloadBtn) optionalElements.push('downloadBtn');
+    if (!downloadTransactionBtn) optionalElements.push('downloadTransactionBtn');
+    if (!refreshBtn) optionalElements.push('refreshBtn');
+    if (!viewDataBtn) optionalElements.push('viewDataBtn');
+    if (!exportDataBtn) optionalElements.push('exportDataBtn');
+    if (!clearDataBtn) optionalElements.push('clearDataBtn');
+    
+    if (optionalElements.length > 0) {
+        console.warn('⚠️ Optional elements missing:', optionalElements);
     }
     
     let selectedFile = null;
 
-    // ファイルアップロード関連のイベント
-    uploadArea.addEventListener('click', () => fileInput.click());
-    uploadArea.addEventListener('dragover', handleDragOver);
-    uploadArea.addEventListener('dragleave', handleDragLeave);
-    uploadArea.addEventListener('drop', handleDrop);
-    fileInput.addEventListener('change', handleFileSelect);
+    // ファイルアップロード関連のイベント（要素が存在する場合のみ）
+    if (uploadArea && fileInput) {
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('dragleave', handleDragLeave);
+        uploadArea.addEventListener('drop', handleDrop);
+        fileInput.addEventListener('change', handleFileSelect);
+    }
 
-    // ボタンイベント
-    uploadBtn.addEventListener('click', () => {
-        console.log('🔼 Upload button clicked');
-        uploadFile();
-    });
-    downloadBtn.addEventListener('click', () => {
-        console.log('📥 Download button clicked');
-        downloadTemplate();
-    });
-    downloadTransactionBtn.addEventListener('click', () => {
-        console.log('📥 Transaction template button clicked');
-        downloadTransactionTemplate();
-    });
-    refreshBtn.addEventListener('click', () => {
-        console.log('🔄 Refresh button clicked');
-        refreshDatabaseStats();
-    });
-    viewDataBtn.addEventListener('click', () => {
-        console.log('👁️ View data button clicked');
-        viewDatabaseData();
-    });
-    exportDataBtn.addEventListener('click', () => {
-        console.log('💾 Export button clicked');
-        exportDatabaseData();
-    });
-    clearDataBtn.addEventListener('click', () => {
-        console.log('🗑️ Clear button clicked');
-        clearDatabaseData();
-    });
+    // ボタンイベント（要素が存在する場合のみ）
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', () => {
+            console.log('🔼 Upload button clicked');
+            uploadFile();
+        });
+    }
+    
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+            console.log('📥 Download button clicked');
+            downloadTemplate();
+        });
+    }
+    
+    if (downloadTransactionBtn) {
+        downloadTransactionBtn.addEventListener('click', () => {
+            console.log('📥 Transaction template button clicked');
+            downloadTransactionTemplate();
+        });
+    }
+    
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            console.log('🔄 Refresh button clicked');
+            refreshDatabaseStats();
+        });
+    }
+    
+    if (viewDataBtn) {
+        viewDataBtn.addEventListener('click', () => {
+            console.log('👁️ View data button clicked');
+            viewDatabaseData();
+        });
+    }
+    
+    if (exportDataBtn) {
+        exportDataBtn.addEventListener('click', () => {
+            console.log('💾 Export button clicked');
+            exportDatabaseData();
+        });
+    }
+    
+    if (clearDataBtn) {
+        clearDataBtn.addEventListener('click', () => {
+            console.log('🗑️ Clear button clicked');
+            clearDatabaseData();
+        });
+    }
 
     console.log('✅ All event listeners attached');
 
