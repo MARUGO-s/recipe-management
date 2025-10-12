@@ -22,22 +22,9 @@ from linebot.v3.messaging import (
     TextMessage
 )
 
-# LINE UI機能のインポート（エラー処理付き）
-try:
-    from linebot.v3.messaging import (
-        TemplateMessage,
-        ButtonsTemplate,
-        PostbackAction,
-        MessageAction,
-        QuickReply,
-        QuickReplyItem
-    )
-    LINE_UI_AVAILABLE = True
-    print("✅ LINE UI機能のインポートに成功")
-except ImportError as e:
-    LINE_UI_AVAILABLE = False
-    print(f"⚠️ LINE UI機能のインポートに失敗: {e}")
-    print("⚠️ 基本的なLINE Bot機能のみ利用可能")
+# LINE UI機能は一時的に無効化（安定性を優先）
+LINE_UI_AVAILABLE = False
+print("⚠️ LINE UI機能は一時的に無効化されています（安定性を優先）")
 from dotenv import load_dotenv
 from azure_vision import AzureVisionAnalyzer
 from groq_parser import GroqRecipeParser
@@ -1540,238 +1527,45 @@ def answer_follow_up(intent, state):
 # ===== LINE UI機能（条件付き） =====
 
 def send_ingredient_add_menu(event):
-    """材料追加メニューを送信（UI機能が利用可能な場合のみ）"""
-    if not LINE_UI_AVAILABLE:
-        reply_text = "UI機能は現在利用できません。代わりに以下の形式で追加してください：\n\n「追加 材料名 価格」\n例: 「追加 トマト 100円/個」"
-        line_bot_api.reply_message(ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=reply_text)]
-        ))
-        return
-    """材料追加メニューを送信"""
-    buttons_template = ButtonsTemplate(
-        text="新たな材料を追加しますか？",
-        actions=[
-            PostbackAction(
-                label="材料を追加",
-                data="action=add_ingredient&step=name"
-            ),
-            PostbackAction(
-                label="材料一覧を見る",
-                data="action=list_ingredients"
-            )
-        ]
-    )
-    
-    template_message = TemplateMessage(
-        alt_text="材料追加メニュー",
-        template=buttons_template
-    )
-    
+    """材料追加メニューを送信（UI機能無効化中）"""
+    reply_text = "材料追加機能は現在利用できません。代わりに以下の形式で追加してください：\n\n「追加 材料名 価格」\n例: 「追加 トマト 100円/個」"
     line_bot_api.reply_message(ReplyMessageRequest(
         reply_token=event.reply_token,
-        messages=[template_message]
+        messages=[TextMessage(text=reply_text)]
     ))
 
 def send_ingredient_name_input(event):
-    """材料名入力画面を送信"""
-    quick_reply_items = [
-        QuickReplyItem(
-            action=MessageAction(
-                label="トマト",
-                text="トマト"
-            )
-        ),
-        QuickReplyItem(
-            action=MessageAction(
-                label="玉ねぎ",
-                text="玉ねぎ"
-            )
-        ),
-        QuickReplyItem(
-            action=MessageAction(
-                label="豚肉",
-                text="豚肉"
-            )
-        ),
-        QuickReplyItem(
-            action=MessageAction(
-                label="牛乳",
-                text="牛乳"
-            )
-        ),
-        QuickReplyItem(
-            action=MessageAction(
-                label="手動入力",
-                text="手動入力"
-            )
-        )
-    ]
-    
-    quick_reply = QuickReply(items=quick_reply_items)
-    
-    text_message = TextMessage(
-        text="材料名を入力してください\n例: トマト、玉ねぎ、豚肉など",
-        quick_reply=quick_reply
-    )
-    
+    """材料名入力画面を送信（UI機能無効化中）"""
+    reply_text = "材料名を直接入力してください\n例: トマト、玉ねぎ、豚肉など"
     line_bot_api.reply_message(ReplyMessageRequest(
         reply_token=event.reply_token,
-        messages=[text_message]
+        messages=[TextMessage(text=reply_text)]
     ))
 
 def send_price_input(event, ingredient_name):
-    """価格入力画面を送信"""
-    quick_reply_items = [
-        QuickReplyItem(
-            action=MessageAction(
-                label="100円/個",
-                text=f"{ingredient_name} 100円/個"
-            )
-        ),
-        QuickReplyItem(
-            action=MessageAction(
-                label="200円/100g",
-                text=f"{ingredient_name} 200円/100g"
-            )
-        ),
-        QuickReplyItem(
-            action=MessageAction(
-                label="300円/1kg",
-                text=f"{ingredient_name} 300円/1kg"
-            )
-        ),
-        QuickReplyItem(
-            action=MessageAction(
-                label="500円/1L",
-                text=f"{ingredient_name} 500円/1L"
-            )
-        ),
-        QuickReplyItem(
-            action=MessageAction(
-                label="手動入力",
-                text=f"{ingredient_name} 手動入力"
-            )
-        )
-    ]
-    
-    quick_reply = QuickReply(items=quick_reply_items)
-    
-    text_message = TextMessage(
-        text=f"{ingredient_name}の価格を入力してください\n例: 100円/個、300円/100g、150円/1kgなど",
-        quick_reply=quick_reply
-    )
-    
+    """価格入力画面を送信（UI機能無効化中）"""
+    reply_text = f"{ingredient_name}の価格を入力してください\n例: 100円/個、300円/100g、150円/1kgなど"
     line_bot_api.reply_message(ReplyMessageRequest(
         reply_token=event.reply_token,
-        messages=[text_message]
+        messages=[TextMessage(text=reply_text)]
     ))
 
 def send_confirmation(event, ingredient_name, price):
-    """確認画面を送信"""
-    buttons_template = ButtonsTemplate(
-        text=f"以下の内容で材料を追加しますか？\n\n材料名: {ingredient_name}\n価格: {price}",
-        actions=[
-            PostbackAction(
-                label="追加する",
-                data=f"action=confirm_add&ingredient={ingredient_name}&price={price}"
-            ),
-            PostbackAction(
-                label="キャンセル",
-                data="action=cancel_add"
-            )
-        ]
-    )
-    
-    template_message = TemplateMessage(
-        alt_text="材料追加の確認",
-        template=buttons_template
-    )
-    
+    """確認画面を送信（UI機能無効化中）"""
+    reply_text = f"以下の内容で材料を追加しますか？\n\n材料名: {ingredient_name}\n価格: {price}\n\n「はい」または「いいえ」で返信してください"
     line_bot_api.reply_message(ReplyMessageRequest(
         reply_token=event.reply_token,
-        messages=[template_message]
+        messages=[TextMessage(text=reply_text)]
     ))
 
 @handler.add(PostbackEvent)
 def handle_postback_event(event):
-    """Postbackイベントを処理（UI機能が利用可能な場合のみ）"""
-    if not LINE_UI_AVAILABLE:
-        reply_text = "UI機能は現在利用できません。"
-        line_bot_api.reply_message(ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=reply_text)]
-        ))
-        return
-    postback_data = event.postback.data
-    user_id = event.source.user_id
-    
-    print(f"Postback受信: {postback_data}")
-    
-    # データをパース
-    data_parts = postback_data.split('&')
-    action = None
-    step = None
-    ingredient = None
-    price = None
-    
-    for part in data_parts:
-        if '=' in part:
-            key, value = part.split('=', 1)
-            if key == 'action':
-                action = value
-            elif key == 'step':
-                step = value
-            elif key == 'ingredient':
-                ingredient = value
-            elif key == 'price':
-                price = value
-    
-    if action == 'add_ingredient':
-        if step == 'name':
-            # 材料名入力画面を送信
-            send_ingredient_name_input(event)
-    
-    elif action == 'list_ingredients':
-        # 材料一覧を表示
-        handle_list_cost_command(event)
-    
-    elif action == 'confirm_add':
-        # 材料を追加
-        if ingredient and price:
-            # 実際の追加処理
-            try:
-                # Groqで価格を解析
-                parsed_data = cost_master_manager.parse_cost_text(f"{ingredient} {price}")
-                if parsed_data:
-                    success = cost_master_manager.add_or_update_cost(
-                        parsed_data['ingredient_name'],
-                        parsed_data['capacity'],
-                        parsed_data['unit'],
-                        parsed_data['unit_price']
-                    )
-                    
-                    if success:
-                        reply_text = f"✅ {ingredient} ({price}) を追加しました！"
-                    else:
-                        reply_text = f"❌ {ingredient} の追加に失敗しました"
-                else:
-                    reply_text = f"❌ 価格の解析に失敗しました: {price}"
-                    
-            except Exception as e:
-                reply_text = f"❌ エラーが発生しました: {str(e)}"
-            
-            line_bot_api.reply_message(ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
-            ))
-    
-    elif action == 'cancel_add':
-        reply_text = "材料追加をキャンセルしました"
-        line_bot_api.reply_message(ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=reply_text)]
-        ))
+    """Postbackイベントを処理（UI機能無効化中）"""
+    reply_text = "UI機能は現在利用できません。テキスト形式で操作してください。"
+    line_bot_api.reply_message(ReplyMessageRequest(
+        reply_token=event.reply_token,
+        messages=[TextMessage(text=reply_text)]
+    ))
 
 
 if __name__ == "__main__":
