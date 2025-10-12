@@ -188,16 +188,19 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // アップロードタイプを取得
-        const uploadTypeElement = document.querySelector('input[name="uploadType"]:checked');
-        if (!uploadTypeElement) {
-            console.error('❌ Upload type radio button not found');
-            showStatus('error', 'アップロードタイプが選択されていません。');
-            return;
-        }
+        // アップロードタイプを取得（デフォルトはcost_master）
+        let uploadType = 'cost_master';
+        let endpoint = '/admin/upload';
         
-        const uploadType = uploadTypeElement.value;
-        const endpoint = uploadType === 'transaction' ? '/admin/upload-transaction' : '/admin/upload';
+        const uploadTypeElement = document.querySelector('input[name="uploadType"]:checked');
+        if (uploadTypeElement) {
+            uploadType = uploadTypeElement.value;
+            endpoint = uploadType === 'transaction' ? '/admin/upload-transaction' : '/admin/upload';
+            console.log('📋 Upload type found:', uploadType);
+        } else {
+            console.warn('⚠️ Upload type radio button not found, using default: cost_master');
+            // デフォルトでcost_masterを使用
+        }
         
         console.log('📋 Upload details:', {
             file: selectedFile.name,
@@ -244,6 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 resetUploadArea();
                 refreshDatabaseStats();
             } else {
+                console.error('❌ Upload failed:', result);
                 showStatus('error', result.error || 'アップロードに失敗しました。');
             }
         } catch (error) {
