@@ -1083,10 +1083,12 @@ def handle_text_message(event):
             return
     
     # 材料名検索（その他のテキスト）
-    # コマンド以外のテキストは、LLMで検索キーワードを抽出してから検索
-    search_term = groq_parser.extract_search_term(text)
-    if search_term:
-        handle_search_ingredient(event, search_term)
+    # コマンド以外のテキストは直接材料名として検索
+    if len(text) >= 2 and not text.startswith('/'):
+        print(f"🔍 材料検索処理開始: '{text}'")
+        handle_search_ingredient(event, text)
+    else:
+        print(f"⚠️ 材料検索スキップ: '{text}' (長さ: {len(text)})")
 
 
 def handle_search_ingredient(event, search_term: str):
@@ -1095,8 +1097,11 @@ def handle_search_ingredient(event, search_term: str):
     例: 「トマト」と入力すると関連する材料を検索
     """
     try:
+        print(f"🔍 材料検索開始: '{search_term}'")
+        
         # 検索キーワードが短すぎる場合はスキップ
         if len(search_term) < 2:
+            print(f"⚠️ 検索キーワードが短すぎます: '{search_term}'")
             line_bot_api.reply_message(ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=[TextMessage(text="レシピの画像を送信するか、「ヘルプ」と入力してください。")]
@@ -1104,7 +1109,9 @@ def handle_search_ingredient(event, search_term: str):
             return
         
         # 材料名で検索
+        print(f"🔍 データベース検索実行: '{search_term}'")
         results = cost_master_manager.search_costs(search_term, limit=5)
+        print(f"📊 検索結果: {len(results) if results else 0}件")
         
         if not results:
             line_bot_api.reply_message(ReplyMessageRequest(
@@ -1148,7 +1155,9 @@ def handle_search_ingredient(event, search_term: str):
         ))
         
     except Exception as e:
-        print(f"材料検索エラー: {e}")
+        print(f"❌ 材料検索エラー: {e}")
+        import traceback
+        traceback.print_exc()
         line_bot_api.reply_message(ReplyMessageRequest(
             reply_token=event.reply_token,
             messages=[TextMessage(text=f"検索中にエラーが発生しました: {str(e)}")]
