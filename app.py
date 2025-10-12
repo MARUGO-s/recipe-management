@@ -1156,20 +1156,21 @@ def handle_search_ingredient(event, search_term: str):
             capacity = cost.get('capacity', 1)
             unit = cost.get('unit', '個')
             
-            # 容量と単位の表示
-            unit_display = f"{capacity}{unit}"
+            # 容量の表示（1の場合は表示しない、整数で表示）
+            if capacity == 1 or capacity == 1.0:
+                capacity_str = ""
+            else:
+                capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
             
-            # 単位列が存在し、かつunitと異なる場合は追加表示
+            # 単位列を必ず表示
             if unit_column:
-                if unit_column != unit:
-                    unit_display += f" (単位列: {unit_column})"
-                else:
-                    # 同じ場合でも単位列として明示
-                    unit_display += f" (単位列: {unit_column})"
+                unit_display = f"{capacity_str}{unit_column}"
+            else:
+                unit_display = f"{capacity_str}{unit}"
             
             response = f"""📋 {ingredient_name}
 
-【容量】{unit_display}
+【単位】{unit_display}
 【単価】¥{cost['unit_price']:.2f}"""
             
             if supplier_name:
@@ -1191,14 +1192,17 @@ def handle_search_ingredient(event, search_term: str):
                 capacity = cost.get('capacity', 1)
                 unit = cost.get('unit', '個')
                 
-                unit_display = f"{capacity}{unit}"
+                # 容量の表示（1の場合は表示しない、整数で表示）
+                if capacity == 1 or capacity == 1.0:
+                    capacity_str = ""
+                else:
+                    capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
                 
-                # 単位列が存在する場合は追加表示
+                # 単位列を必ず表示
                 if unit_column:
-                    if unit_column != unit:
-                        unit_display += f" (単位列: {unit_column})"
-                    else:
-                        unit_display += f" (単位列: {unit_column})"
+                    unit_display = f"{capacity_str}{unit_column}"
+                else:
+                    unit_display = f"{capacity_str}{unit}"
                 
                 response += f"{i}. {ingredient_name}{supplier_str}\n"
                 response += f"   {unit_display} = ¥{cost['unit_price']:.0f}\n\n"
@@ -1425,14 +1429,17 @@ def handle_list_cost_command(event):
             capacity = cost.get('capacity', 1)
             unit = cost.get('unit', '個')
             
-            unit_display = f"{capacity}{unit}"
+            # 容量の表示（1の場合は表示しない、整数で表示）
+            if capacity == 1 or capacity == 1.0:
+                capacity_str = ""
+            else:
+                capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
             
-            # 単位列が存在する場合は追加表示
+            # 単位列を必ず表示
             if unit_column:
-                if unit_column != unit:
-                    unit_display += f" (単位列: {unit_column})"
-                else:
-                    unit_display += f" (単位列: {unit_column})"
+                unit_display = f"{capacity_str}{unit_column}"
+            else:
+                unit_display = f"{capacity_str}{unit}"
             
             response += f"{i}. {cost['ingredient_name']}\n"
             response += f"   {unit_display} = ¥{cost['unit_price']:.0f}\n"
