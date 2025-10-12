@@ -47,12 +47,10 @@ class AzureVisionAnalyzer:
                 return None
 
             # Step 2: 解析結果をポーリングして取得
-            result = self._get_analysis_result(operation_location)
-            
             # Step 3: readResultsからテキストを抽出
-            extracted_text = self._extract_text_from_result(result)
+            full_text, language = self._extract_text_from_result(result)
             
-            return "\n".join(extracted_text) if extracted_text else None
+            return full_text, language
             
         except requests.exceptions.RequestException as e:
             print(f"Azure Vision API エラー: {e}")
@@ -92,9 +90,9 @@ class AzureVisionAnalyzer:
             result = self._get_analysis_result(operation_location)
 
             # Step 3: readResultsからテキストを抽出
-            extracted_text = self._extract_text_from_result(result)
+            full_text, language = self._extract_text_from_result(result)
             
-            return "\n".join(extracted_text) if extracted_text else None
+            return full_text, language
             
         except requests.exceptions.RequestException as e:
             print(f"Azure Vision API エラー: {e}")
@@ -125,17 +123,27 @@ class AzureVisionAnalyzer:
         print("Azure Visionの解析がタイムアウトしました。")
         return None
 
-    def _extract_text_from_result(self, result: Optional[dict]) -> List[str]:
-        """解析結果のJSONからテキスト行を抽出する"""
+    def _extract_text_from_result(self, result: Optional[dict]) -> (Optional[str], Optional[str]):
+        """解析結果のJSONからテキスト行と主要言語を抽出する"""
         if not result:
-            return []
+            return None, None
 
         extracted_text = []
+        language_codes = []
         if result.get('analyzeResult') and result['analyzeResult'].get('readResults'):
             for page in result['analyzeResult']['readResults']:
                 for line in page.get("lines", []):
                     extracted_text.append(line.get("text", ""))
-        return extracted_text
+                    language_codes.append(line.get("language", "ja"))
+        
+        if not extracted_text:
+            return None, None
+
+        # 最も頻度の高い言語を特定
+        from collections import Counter
+        dominant_language = Counter(language_codes).most_common(1)[0][0] if language_codes else 'ja'
+
+        return "\n".join(extracted_text), dominant_language
 
 
 if __name__ == "__main__":

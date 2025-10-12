@@ -162,6 +162,38 @@ class GroqRecipeParser:
         
         return True
 
+    def translate_text(self, text: str, target_language: str = "日本語") -> Optional[str]:
+        """テキストをターゲット言語に翻訳する"""
+        try:
+            prompt = f"""以下のテキストを{target_language}に翻訳してください。
+翻訳結果のみを出力し、余計な説明は含めないでください。
+
+【原文】
+{text}
+"""
+            
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"あなたはプロの翻訳家です。テキストを{target_language}に自然に翻訳します。"
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                model=self.model,
+                temperature=0.1,
+                max_tokens=2000
+            )
+            
+            return chat_completion.choices[0].message.content.strip()
+
+        except Exception as e:
+            print(f"テキスト翻訳エラー: {e}")
+            return None
+
 
 if __name__ == "__main__":
     # テスト用

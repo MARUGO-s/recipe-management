@@ -736,21 +736,34 @@ def handle_image_message(event):
         reply_message = "画像を受け取りました。解析中です..."
         line_bot_api.reply_message(ReplyMessageRequest(
             reply_token=event.reply_token,
-            messages=[TextMessage(text=reply_message)]
-        ))
-        
-        ocr_text = azure_analyzer.analyze_image_from_bytes(image_bytes)
-        
-        if not ocr_text:
-            line_bot_api.push_message(PushMessageRequest(
-                to=event.source.user_id,
-                messages=[TextMessage(text="画像からテキストを抽出できませんでした。")]
-            ))
-            return
-        
-        print(f"OCR結果: {ocr_text}")
-        
-        # ステップ2: Groqでレシピ構造化
+                        messages=[TextMessage(text=reply_message)]
+                    ))
+                    
+                    ocr_text, detected_language = azure_analyzer.analyze_image_from_bytes(image_bytes)
+                    
+                    if not ocr_text:
+                        line_bot_api.push_message(PushMessageRequest(
+                            to=event.source.user_id,
+                            messages=[TextMessage(text="画像からテキストを抽出できませんでした。" )]
+                        ))
+                        return
+                    
+                    print(f"OCR結果 (言語: {detected_language}):\n{ocr_text}")
+            
+                    # 日本語以外の場合は翻訳
+                    if detected_language != 'ja':
+                        print(f"翻訳を実行します: {detected_language} -> ja")
+                        translated_text = groq_parser.translate_text(ocr_text)
+                        if not translated_text:
+                            line_bot_api.push_message(PushMessageRequest(
+                                to=event.source.user_id,
+                                messages=[TextMessage(text="テキストの翻訳に失敗しました。" )]
+                            ))
+                            return
+                        print(f"翻訳結果:\n{translated_text}")
+                        ocr_text = translated_text # 解析には翻訳後のテキストを使用
+            
+                    # ステップ2: Groqでレシピ構造化
         recipe_data = groq_parser.parse_recipe_text(ocr_text)
         
         if not recipe_data:

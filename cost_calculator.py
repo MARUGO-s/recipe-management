@@ -61,7 +61,7 @@ class CostCalculator:
 
     def calculate_ingredient_cost(self, ingredient_name: str, quantity: float, unit: str) -> Optional[Decimal]:
         """
-        材料1つの原価を計算（新しいロジック）
+        材料1つの原価を計算（新しい厳密な単位変換ロジック）
         """
         # 原価マスターから最も近い材料名を見つける（部分一致）
         best_match = None
@@ -71,7 +71,7 @@ class CostCalculator:
                 break
         
         if not best_match:
-            print(f"警告: '{ingredient_name}' は原価表に存在しません。")
+            # print(f"警告: '{ingredient_name}' は原価表に存在しません。")
             return None
 
         master_data = self.cost_master[best_match]
@@ -83,26 +83,33 @@ class CostCalculator:
         decimal_quantity = Decimal(str(quantity))
 
         # 単位を正規化
-        normalized_request_unit = self._normalize_unit(unit)
-        normalized_master_unit = self._normalize_unit(master_unit)
+        unit_r = self._normalize_unit(unit) # レシピの単位
+        unit_m = self._normalize_unit(master_unit) # 原価マスターの単位
 
-        # 単位が同じカテゴリ（重量、容量など）かチェック
-        if self._get_unit_category(normalized_request_unit) != self._get_unit_category(normalized_master_unit):
+        # カテゴリを取得
+        category_r = self._get_unit_category(unit_r)
+        category_m = self._get_unit_category(unit_m)
+
+        # 1. 単位が完全に一致する場合
+        if unit_r == unit_m:
+            if master_capacity == 0: return None
+            cost = (decimal_quantity / master_capacity) * master_price
+            return cost.quantize(Decimal('0.01'))
+
+        # 2. 単位のカテゴリが一致しない場合は計算不可
+        if category_r != category_m or category_r == 'count': # 個数系同士の変換は行わない
             print(f"警告: '{ingredient_name}' の単位変換ができません ({unit} -> {master_unit}) - カテゴリ不一致")
             return None
 
-        # 基準単位（gまたはml）に変換
-        converted_quantity = self._convert_to_base_unit(decimal_quantity, normalized_request_unit)
-        converted_master_capacity = self._convert_to_base_unit(master_capacity, normalized_master_unit)
+        # 3. カテゴリが一致する場合（重量または容量）、基準単位に変換して計算
+        converted_quantity = self._convert_to_base_unit(decimal_quantity, unit_r)
+        converted_master_capacity = self._convert_to_base_unit(master_capacity, unit_m)
 
         if converted_quantity is None or converted_master_capacity is None or converted_master_capacity == 0:
             print(f"警告: '{ingredient_name}' の単位変換に失敗しました。")
             return None
 
-        # 基準単位あたりの単価を計算
         price_per_base_unit = master_price / converted_master_capacity
-        
-        # 材料のコストを計算
         cost = converted_quantity * price_per_base_unit
         return cost.quantize(Decimal('0.01'))
 
