@@ -1116,7 +1116,17 @@ def handle_search_ingredient(event, search_term: str):
         if not results:
             line_bot_api.reply_message(ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=f"「{search_term}」に一致する材料が見つかりませんでした。\n\n原価表に登録するには:\n「追加 {search_term} 価格/単位」と入力してください。")]
+                messages=[TextMessage(text=f"""「{search_term}」に一致する材料が見つかりませんでした。
+
+原価表に登録するには：
+
+✅ 推奨形式：
+・「追加 {search_term} 100円/個」
+・「追加 {search_term} 200円/kg」
+
+💡 簡単形式（円は省略可）：
+・「追加 {search_term} 100 個」
+・「追加 {search_term} 200 kg」""")]
             ))
             return
         
@@ -1192,7 +1202,19 @@ def handle_add_cost_command(event, text: str):
         if not cost_data:
             line_bot_api.push_message(PushMessageRequest(
                 to=event.source.user_id,
-                messages=[TextMessage(text="原価情報の解析に失敗しました。\n形式を確認してください。\n例: 「トマト 100円/個」")]
+                messages=[TextMessage(text="""原価情報の解析に失敗しました。
+
+以下の形式で入力してください：
+
+✅ 正しい例：
+・「追加 みかん 100円/個」
+・「追加 みかん 100 個」（円は省略可）
+・「追加 トマト 200円/kg」
+・「追加 玉ねぎ 150円/500g」
+
+❌ 避けるべき例：
+・「追加 みかん 100 個」（価格と単位が不明確）
+・「追加 みかん 個 100」（順序が逆）""")]
             ))
             return
         

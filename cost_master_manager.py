@@ -48,95 +48,83 @@ class CostMasterManager:
             }
         """
         try:
-            prompt = f"""以下のテキストから材料の原価情報を抽出し、JSON形式で出力してください。
-
-【抽出する情報】
-1. ingredient_name: 材料名（文字列）
-2. capacity: 容量・包装量（数値）
-3. unit: 単位（「個」「g」「ml」「本」「玉」「丁」「袋」など）
-4. unit_price: その容量あたりの単価（数値、円）
-
-   - capacityは材料の包装容量（例: 500gパックの場合は500）
-   - capacity_unitは包装容量の単位（例: g, ml, 個）
-
-【単位に関する重要な注意】
-- `pc`、`p`、`本`、`枚`、`束`、`缶`、`箱` のような個数系の単位は、`個`に変換せず、元の単位をそのまま使用してください。
-- 「kg」は「g」に、「L」は「ml」に変換してください。
-
-【重要な注意事項】
-- 出力は必ず有効なJSON形式にしてください
-- 余計な説明やマークダウンは含めず、JSONのみを出力してください
-- capacity と unit_price は必ず数値型（float）にしてください
-- 価格が「100円/個」のような形式の場合、capacity: 1, unit: "個", unit_price: 100
-- 価格が「300円/100g」のような形式の場合、capacity: 100, unit: "g", unit_price: 300
-- 価格が「1kg 1000円」のような形式の場合、capacity: 1000, unit: "g", unit_price: 1000
-- 「kg」は「g」に、「L」は「ml」に変換してください
-
-【入力テキスト】
-{text}
-
-【出力JSON形式】
-{{
-  "ingredient_name": "材料名",
-  "capacity": 1.0,
-  "unit": "個",
-  "unit_price": 100.0
-}}
-
-例1: 「トマト 100円/個」
-→ {{"ingredient_name": "トマト", "capacity": 1.0, "unit": "個", "unit_price": 100.0}}
-
-例2: 「豚バラ肉 300円/100g」
-→ {{"ingredient_name": "豚バラ肉", "capacity": 100.0, "unit": "g", "unit_price": 300.0}}
-
-例3: 「キャベツ1玉150円」
-→ {{"ingredient_name": "キャベツ", "capacity": 1.0, "unit": "個", "unit_price": 150.0}}
-
-例4: 「牛乳 1L 200円」
-→ {{"ingredient_name": "牛乳", "capacity": 1000.0, "unit": "ml", "unit_price": 200.0}}
-
-例5: 「米 5kg 2000円」
-→ {{"ingredient_name": "米", "capacity": 5000.0, "unit": "g", "unit_price": 2000.0}}
-"""
+            # シンプルな正規表現による解析
+            import re
             
-            chat_completion = self.groq_client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "あなたは食材の原価情報を構造化する専門家です。与えられたテキストから正確に原価情報を抽出し、JSON形式で出力します。"
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                model="llama-3.1-8b-instant",
-                temperature=0.2,
-                max_tokens=500
-            )
-            
-            response_text = chat_completion.choices[0].message.content.strip()
-            
-            # JSONの抽出
-            if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
-            
-            # JSONをパース
-            cost_data = json.loads(response_text)
-            
-            # バリデーション
-            if self._validate_cost_data(cost_data):
-                return cost_data
-            else:
-                print("原価データのバリデーションに失敗しました。")
-                return None
+            # パターン1: 「材料名 価格円/単位」
+            match = re.match(r'(.+?)\s+(\d+(?:\.\d+)?)円/(\d+(?:\.\d+)?)?([a-zA-Z個gml本玉丁袋kgL]+)', text)
+            if match:
+                ingredient_name = match.group(1).strip()
+                price = float(match.group(2))
+                capacity = float(match.group(3)) if match.group(3) else 1.0
+                unit = match.group(4)
                 
-        except json.JSONDecodeError as e:
-            print(f"JSON解析エラー: {e}")
-            print(f"レスポンス: {response_text}")
+                # 単位変換
+                if unit == 'kg':
+                    capacity *= 1000
+                    unit = 'g'
+                elif unit == 'L':
+                    capacity *= 1000
+                    unit = 'ml'
+                
+                return {
+                    "ingredient_name": ingredient_name,
+                    "capacity": capacity,
+                    "unit": unit,
+                    "unit_price": price
+                }
+            
+            # パターン2: 「材料名 数値 単位」（通貨単位なし）
+            match = re.match(r'(.+?)\s+(\d+(?:\.\d+)?)\s+([a-zA-Z個gml本玉丁袋kgL]+)', text)
+            if match:
+                ingredient_name = match.group(1).strip()
+                price = float(match.group(2))
+                unit = match.group(3)
+                
+                # 容量は1.0に設定（単価として解釈）
+                capacity = 1.0
+                
+                # 単位変換
+                if unit == 'kg':
+                    capacity *= 1000
+                    unit = 'g'
+                elif unit == 'L':
+                    capacity *= 1000
+                    unit = 'ml'
+                
+                return {
+                    "ingredient_name": ingredient_name,
+                    "capacity": capacity,
+                    "unit": unit,
+                    "unit_price": price
+                }
+            
+            # パターン3: 「材料名 容量単位 価格円」
+            match = re.match(r'(.+?)\s+(\d+(?:\.\d+)?)([a-zA-Z個gml本玉丁袋kgL]+)\s+(\d+(?:\.\d+)?)円', text)
+            if match:
+                ingredient_name = match.group(1).strip()
+                capacity = float(match.group(2))
+                unit = match.group(3)
+                price = float(match.group(4))
+                
+                # 単位変換
+                if unit == 'kg':
+                    capacity *= 1000
+                    unit = 'g'
+                elif unit == 'L':
+                    capacity *= 1000
+                    unit = 'ml'
+                
+                return {
+                    "ingredient_name": ingredient_name,
+                    "capacity": capacity,
+                    "unit": unit,
+                    "unit_price": price
+                }
+            
+            # どのパターンにもマッチしない場合
             return None
+            
         except Exception as e:
             print(f"原価テキスト解析エラー: {e}")
             return None
