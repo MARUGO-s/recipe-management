@@ -681,23 +681,36 @@ def admin_export():
 
 @app.route("/admin/clear", methods=['POST'])
 def admin_clear():
-    """データベース内容のクリア"""
+    """データベース内容のクリア（選択式）"""
     try:
-        # 外部キー制約のため、子テーブルから先に削除する
-        # 1. 材料のクリア
-        supabase.table('ingredients').delete().neq('ingredient_name', '').execute()
-
-        # 2. レシピのクリア
-        supabase.table('recipes').delete().neq('recipe_name', '').execute()
-
-        # 3. 原価マスターのクリア
-        supabase.table('cost_master').delete().neq('ingredient_name', '').execute()
+        data = request.get_json() or {}
+        clear_cost_master = data.get('clear_cost_master', False)
+        clear_recipes = data.get('clear_recipes', False)
         
-        return jsonify({"success": True, "message": "データベースをクリアしました"})
+        deleted_items = []
+        
+        if clear_recipes:
+            # 外部キー制約のため、子テーブル（ingredients）から先に削除する
+            supabase.table('ingredients').delete().neq('ingredient_name', '').execute()
+            supabase.table('recipes').delete().neq('recipe_name', '').execute()
+            deleted_items.append('保存レシピ')
+        
+        if clear_cost_master:
+            # 原価マスターのクリア
+            supabase.table('cost_master').delete().neq('ingredient_name', '').execute()
+            deleted_items.append('登録材料')
+        
+        if not deleted_items:
+            return jsonify({"error": "削除するデータが選択されていません"}), 400
+        
+        message = f"データをクリアしました: {', '.join(deleted_items)}"
+        return jsonify({"success": True, "message": message})
     
     except Exception as e:
         print(f"クリアエラー: {e}")
-        return jsonify({"error": "データのクリアに失敗しました"}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"データのクリアに失敗しました: {str(e)}"}), 500
 
 @app.route("/health", methods=['GET'])
 def health_check():

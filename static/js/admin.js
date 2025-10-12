@@ -359,30 +359,110 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // データのクリア
     async function clearDatabaseData() {
-        const confirmation = prompt('本当にデータベースの内容をクリアしますか？この操作は元に戻せません。\n\n確認のため、ボックスに「クリア」と入力してください。');
+        // モーダルを作成して選択肢を表示
+        const modalHTML = `
+            <div class="modal fade" id="clearModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content" style="background-color: #2a2a3e; color: #e0e0e0; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                            <h5 class="modal-title" style="color: #e57373;">
+                                <i class="fas fa-exclamation-triangle me-2"></i>データクリア
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-3">削除するデータを選択してください：</p>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="clearCostMaster" checked>
+                                <label class="form-check-label" for="clearCostMaster">
+                                    登録材料（原価マスター）
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="clearRecipes">
+                                <label class="form-check-label" for="clearRecipes">
+                                    保存レシピ
+                                </label>
+                            </div>
+                            <div class="alert alert-warning mt-3" style="background-color: rgba(255, 193, 7, 0.1); border-color: #ffc107; color: #ffc107;">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                この操作は元に戻せません！
+                            </div>
+                            <div class="mt-3">
+                                <label for="confirmText" class="form-label">確認のため「クリア」と入力してください：</label>
+                                <input type="text" class="form-control" id="confirmText" style="background-color: #1a1a2e; color: #e0e0e0; border-color: rgba(255, 255, 255, 0.2);">
+                            </div>
+                        </div>
+                        <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+                            <button type="button" class="btn btn-danger" id="confirmClearBtn">
+                                <i class="fas fa-trash-alt me-2"></i>クリア実行
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
         
-        if (confirmation !== 'クリア') {
-            showStatus('info', 'クリア操作がキャンセルされました。');
-            return;
+        // 既存のモーダルを削除
+        const existingModal = document.getElementById('clearModal');
+        if (existingModal) {
+            existingModal.remove();
         }
-
-        try {
-            const response = await fetch('/admin/clear', {
-                method: 'POST'
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                showStatus('success', 'データベースをクリアしました。');
-                refreshDatabaseStats();
-            } else {
-                showStatus('error', result.error || 'データのクリアに失敗しました。');
+        
+        // 新しいモーダルを追加
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // モーダルを表示
+        const clearModal = new bootstrap.Modal(document.getElementById('clearModal'));
+        clearModal.show();
+        
+        // クリア実行ボタンのイベント
+        document.getElementById('confirmClearBtn').addEventListener('click', async function() {
+            const confirmText = document.getElementById('confirmText').value;
+            const clearCostMaster = document.getElementById('clearCostMaster').checked;
+            const clearRecipes = document.getElementById('clearRecipes').checked;
+            
+            if (confirmText !== 'クリア') {
+                showStatus('error', '確認テキストが正しくありません。');
+                return;
             }
-        } catch (error) {
-            showStatus('error', 'データのクリア中にエラーが発生しました。');
-            console.error('Clear error:', error);
-        }
+            
+            if (!clearCostMaster && !clearRecipes) {
+                showStatus('error', '削除するデータを選択してください。');
+                return;
+            }
+            
+            try {
+                clearModal.hide();
+                
+                const response = await fetch('/admin/clear', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        clear_cost_master: clearCostMaster,
+                        clear_recipes: clearRecipes
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    let message = 'データをクリアしました：';
+                    if (clearCostMaster) message += '\n・登録材料';
+                    if (clearRecipes) message += '\n・保存レシピ';
+                    showStatus('success', message);
+                    refreshDatabaseStats();
+                } else {
+                    showStatus('error', result.error || 'データのクリアに失敗しました。');
+                }
+            } catch (error) {
+                showStatus('error', 'データのクリア中にエラーが発生しました。');
+                console.error('Clear error:', error);
+            }
+        });
     }
 
     // ステータス表示
@@ -425,18 +505,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const modalHTML = `
             <div class="modal fade" id="dataModal" tabindex="-1">
                 <div class="modal-dialog modal-xl">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">データベース内容</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <div class="modal-content" style="background-color: #2a2a3e; color: #e0e0e0; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                            <h5 class="modal-title" style="color: #64b5f6;">データベース内容</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
                             <div class="row">
                                 <div class="col-md-6">
-                                    <h6>原価マスター (${data.cost_master?.length || 0}件)</h6>
+                                    <h6 style="color: #81c784;">原価マスター (${data.cost_master?.length || 0}件)</h6>
                                     <div class="table-responsive" style="max-height: 400px;">
-                                        <table class="table table-sm">
-                                            <thead class="table-light">
+                                        <table class="table table-sm table-dark">
+                                            <thead style="background-color: rgba(100, 181, 246, 0.2);">
                                                 <tr>
                                                     <th>材料名</th>
                                                     <th>取引先</th>
@@ -485,10 +565,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                     </div>
                                 </div>
                                 <div class="col-md-6">
-                                    <h6>レシピ (${data.recipes?.length || 0}件)</h6>
+                                    <h6 style="color: #81c784;">レシピ (${data.recipes?.length || 0}件)</h6>
                                     <div class="table-responsive" style="max-height: 400px;">
-                                        <table class="table table-sm">
-                                            <thead class="table-light">
+                                        <table class="table table-sm table-dark">
+                                            <thead style="background-color: rgba(100, 181, 246, 0.2);">
                                                 <tr>
                                                     <th>料理名</th>
                                                     <th>人数</th>
@@ -509,8 +589,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                             </div>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                        <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
                         </div>
                     </div>
                 </div>
