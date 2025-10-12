@@ -19,14 +19,25 @@ from linebot.v3.messaging import (
     MessagingApiBlob,
     ReplyMessageRequest,
     PushMessageRequest,
-    TextMessage,
-    TemplateMessage,
-    ButtonsTemplate,
-    PostbackAction,
-    MessageAction,
-    QuickReply,
-    QuickReplyItem
+    TextMessage
 )
+
+# LINE UI機能のインポート（エラー処理付き）
+try:
+    from linebot.v3.messaging import (
+        TemplateMessage,
+        ButtonsTemplate,
+        PostbackAction,
+        MessageAction,
+        QuickReply,
+        QuickReplyItem
+    )
+    LINE_UI_AVAILABLE = True
+    print("✅ LINE UI機能のインポートに成功")
+except ImportError as e:
+    LINE_UI_AVAILABLE = False
+    print(f"⚠️ LINE UI機能のインポートに失敗: {e}")
+    print("⚠️ 基本的なLINE Bot機能のみ利用可能")
 from dotenv import load_dotenv
 from azure_vision import AzureVisionAnalyzer
 from groq_parser import GroqRecipeParser
@@ -1071,10 +1082,18 @@ def handle_text_message(event):
         handle_list_cost_command(event)
         return
     
-    # 材料追加UIコマンド
+    # 材料追加UIコマンド（LINE UI機能が利用可能な場合のみ）
     if text == "材料追加" or text == "材料を追加":
-        send_ingredient_add_menu(event)
-        return
+        if LINE_UI_AVAILABLE:
+            send_ingredient_add_menu(event)
+            return
+        else:
+            reply_text = "材料追加機能は現在利用できません。代わりに以下の形式で追加してください：\n\n「追加 材料名 価格」\n例: 「追加 トマト 100円/個」"
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=reply_text)]
+            ))
+            return
     
     # 材料名検索（その他のテキスト）
     # コマンド以外のテキストは、LLMで検索キーワードを抽出してから検索
@@ -1518,9 +1537,17 @@ def answer_follow_up(intent, state):
 
     return None # No answer for this intent
 
-# ===== LINE UI機能 =====
+# ===== LINE UI機能（条件付き） =====
 
 def send_ingredient_add_menu(event):
+    """材料追加メニューを送信（UI機能が利用可能な場合のみ）"""
+    if not LINE_UI_AVAILABLE:
+        reply_text = "UI機能は現在利用できません。代わりに以下の形式で追加してください：\n\n「追加 材料名 価格」\n例: 「追加 トマト 100円/個」"
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=reply_text)]
+        ))
+        return
     """材料追加メニューを送信"""
     buttons_template = ButtonsTemplate(
         text="新たな材料を追加しますか？",
@@ -1668,7 +1695,14 @@ def send_confirmation(event, ingredient_name, price):
 
 @handler.add(PostbackEvent)
 def handle_postback_event(event):
-    """Postbackイベントを処理"""
+    """Postbackイベントを処理（UI機能が利用可能な場合のみ）"""
+    if not LINE_UI_AVAILABLE:
+        reply_text = "UI機能は現在利用できません。"
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=reply_text)]
+        ))
+        return
     postback_data = event.postback.data
     user_id = event.source.user_id
     
