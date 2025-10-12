@@ -700,102 +700,296 @@ def callback():
 
 
 @handler.add(MessageEvent, message=ImageMessage)
+
+
 def handle_image_message(event):
+
+
     """画像メッセージの処理"""
+
+
     try:
+
+
         # 画像の取得
+
+
         message_id = event.message.id
+
+
         message_content = line_bot_blob_api.get_message_content(message_id)
+
+
         
+
+
         # 画像データを取得
+
+
         image_bytes = b''
+
+
         for chunk in message_content.iter_content():
+
+
             image_bytes += chunk
+
+
         
+
+
         # ステップ1: Azure Visionで画像解析
+
+
         reply_message = "画像を受け取りました。解析中です..."
+
+
         line_bot_api.reply_message(ReplyMessageRequest(
+
+
             reply_token=event.reply_token,
-                        messages=[TextMessage(text=reply_message)]
-                    ))
-                    
-                    ocr_text, detected_language = azure_analyzer.analyze_image_from_bytes(image_bytes)
-                    
-                    if not ocr_text:
-                        line_bot_api.push_message(PushMessageRequest(
-                            to=event.source.user_id,
-                            messages=[TextMessage(text="画像からテキストを抽出できませんでした。" )]
-                        ))
-                        return
-                    
-                    print(f"OCR結果 (言語: {detected_language}):\n{ocr_text}")
-            
-                    # 日本語以外の場合は翻訳
-                    if detected_language != 'ja':
-                        print(f"翻訳を実行します: {detected_language} -> ja")
-                        translated_text = groq_parser.translate_text(ocr_text)
-                        if not translated_text:
-                            line_bot_api.push_message(PushMessageRequest(
-                                to=event.source.user_id,
-                                messages=[TextMessage(text="テキストの翻訳に失敗しました。" )]
-                            ))
-                            return
-                        print(f"翻訳結果:\n{translated_text}")
-                        ocr_text = translated_text # 解析には翻訳後のテキストを使用
-            
-                    # ステップ2: Groqでレシピ構造化
-        recipe_data = groq_parser.parse_recipe_text(ocr_text)
+
+
+            messages=[TextMessage(text=reply_message)]
+
+
+        ))
+
+
         
-        if not recipe_data:
+
+
+        ocr_text, detected_language = azure_analyzer.analyze_image_from_bytes(image_bytes)
+
+
+        
+
+
+        if not ocr_text:
+
+
             line_bot_api.push_message(PushMessageRequest(
+
+
                 to=event.source.user_id,
-                messages=[TextMessage(text="レシピ情報を解析できませんでした。")]
+
+
+                messages=[TextMessage(text="画像からテキストを抽出できませんでした。" )]
+
+
             ))
+
+
             return
+
+
         
+
+
+        print(f"OCR結果 (言語: {detected_language}):\n{ocr_text}")
+
+
+
+
+
+        # 日本語以外の場合は翻訳
+
+
+        if detected_language != 'ja':
+
+
+            print(f"翻訳を実行します: {detected_language} -> ja")
+
+
+            translated_text = groq_parser.translate_text(ocr_text)
+
+
+            if not translated_text:
+
+
+                line_bot_api.push_message(PushMessageRequest(
+
+
+                    to=event.source.user_id,
+
+
+                    messages=[TextMessage(text="テキストの翻訳に失敗しました。" )]
+
+
+                ))
+
+
+                return
+
+
+            print(f"翻訳結果:\n{translated_text}")
+
+
+            ocr_text = translated_text # 解析には翻訳後のテキストを使用
+
+
+
+
+
+        # ステップ2: Groqでレシピ構造化
+
+
+        recipe_data = groq_parser.parse_recipe_text(ocr_text)
+
+
+        
+
+
+        if not recipe_data:
+
+
+            line_bot_api.push_message(PushMessageRequest(
+
+
+                to=event.source.user_id,
+
+
+                messages=[TextMessage(text="レシピ情報を解析できませんでした。" )]
+
+
+            ))
+
+
+            return
+
+
+        
+
+
         print(f"解析されたレシピ: {recipe_data}")
+
+
         
+
+
         # ステップ3: 原価計算
+
+
         cost_result = cost_calculator.calculate_recipe_cost(recipe_data['ingredients'])
+
+
         
+
+
         # ステップ4: Supabaseに保存
+
+
         recipe_id = save_recipe_to_supabase(
+
+
             recipe_data['recipe_name'],
+
+
             recipe_data['servings'],
+
+
             cost_result['total_cost'],
+
+
             cost_result['ingredients_with_cost']
+
+
         )
+
+
         
+
+
         # 会話状態を保存
+
+
         user_id = event.source.user_id
+
+
         new_state = {
+
+
             'last_action': 'recipe_analysis',
+
+
             'recipe_name': recipe_data['recipe_name'],
+
+
             'servings': recipe_data['servings'],
+
+
             'cost_result': cost_result,
+
+
             'timestamp': datetime.now().isoformat()
+
+
         }
+
+
         set_user_state(user_id, new_state)
 
+
+
+
+
         # ステップ5: LINEで結果を返信
+
+
         response_message = format_cost_response(
+
+
             recipe_data['recipe_name'],
+
+
             recipe_data['servings'],
+
+
             cost_result['ingredients_with_cost'],
+
+
             cost_result['total_cost'],
+
+
             cost_result['missing_ingredients']
+
+
         )
+
+
         
+
+
         line_bot_api.push_message(PushMessageRequest(
+
+
             to=event.source.user_id,
+
+
             messages=[TextMessage(text=response_message)]
+
+
         ))
+
+
         
+
+
     except Exception as e:
+
+
         print(f"エラー: {e}")
+
+
         line_bot_api.push_message(PushMessageRequest(
+
+
             to=event.source.user_id,
+
+
             messages=[TextMessage(text=f"エラーが発生しました: {str(e)}")]
+
+
         ))
 
 
