@@ -37,14 +37,9 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')
 
-# CSRF保護を有効化（エラー処理付き）
-try:
-    from flask_wtf.csrf import CSRFProtect
-    csrf = CSRFProtect(app)
-    print("✅ CSRF保護が有効化されました")
-except ImportError as e:
-    print(f"⚠️ CSRF保護のインポートに失敗: {e}")
-    csrf = None
+# CSRF保護を無効化（フォーム機能を優先）
+csrf = None
+print("⚠️ CSRF保護は無効化されています（フォーム機能を優先）")
 
 # LINE Bot設定
 configuration = Configuration(access_token=os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
@@ -725,9 +720,9 @@ def admin_clear():
             return jsonify({"error": f"データのクリアに失敗しました: {str(e)}"}), 500
 
 
-# ==================== 材料フォーム関連（一時的に無効化） ====================
+# ==================== 材料フォーム関連 ====================
 
-# @app.route("/ingredient/form")
+@app.route("/ingredient/form")
 def ingredient_form():
     """材料追加・修正フォームの表示"""
     try:
@@ -763,7 +758,7 @@ def ingredient_form():
                              csrf_token=csrf.generate_csrf if csrf else None)
 
 
-# @app.route("/ingredient/submit", methods=['POST'])
+@app.route("/ingredient/submit", methods=['POST'])
 def submit_ingredient_form():
     """材料フォームの送信処理"""
     try:
@@ -1285,12 +1280,15 @@ def handle_search_ingredient(event, search_term: str):
         print(f"📊 検索結果: {len(results) if results else 0}件")
         
         if not results:
+            add_form_url = "https://recipe-management-nd00.onrender.com/ingredient/form"
             line_bot_api.reply_message(ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=[TextMessage(text=f"""「{search_term}」に一致する材料が見つかりませんでした。
 
-原価表に登録するには：
+📝 新規追加フォーム：
+{add_form_url}
 
+または、テキストで追加：
 ✅ 推奨形式：
 ・「追加 {search_term} 100円/個」
 ・「追加 {search_term} 200円/kg」
@@ -1347,9 +1345,9 @@ def handle_search_ingredient(event, search_term: str):
             if cost.get('updated_at'):
                 response += f"\n【更新日】{cost['updated_at'][:10]}"
             
-            # フォームURLを追加（一時的に無効化）
-            # form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?id={cost['id']}"
-            # response += f"\n\n📝 修正: {form_url}"
+            # フォームURLを追加
+            form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?id={cost['id']}"
+            response += f"\n\n📝 修正: {form_url}"
         else:
             # 複数候補がある場合
             response = f"🔍 「{search_term}」の検索結果（{len(results)}件）\n\n"
@@ -1391,10 +1389,9 @@ def handle_search_ingredient(event, search_term: str):
                 if cost.get('spec'):
                     response += f"\n   【規格】{cost['spec']}"
                 
-                # 修正リンクを追加（一時的に無効化）
-                # form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?id={cost['id']}"
-                # response += f"\n   📝 修正: {form_url}\n\n"
-                response += "\n"
+                # 修正リンクを追加
+                form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?id={cost['id']}"
+                response += f"\n   📝 修正: {form_url}\n\n"
         
         line_bot_api.reply_message(ReplyMessageRequest(
             reply_token=event.reply_token,
