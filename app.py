@@ -109,6 +109,7 @@ def admin_index():
     """管理画面のトップページ"""
     return render_template('index.html')
 
+
 @app.route("/admin/upload", methods=['POST'])
 def admin_upload():
     """原価表CSVファイルのアップロード"""
@@ -131,28 +132,30 @@ def admin_upload():
         for row in csv_reader:
             try:
                 # データの検証と変換
-                if not row.get('ingredient_name') or not row.get('unit_price'):
+                ingredient_name = row.get('ingredient_name', '').strip()
+                unit_price = row.get('unit_price', '').strip()
+                
+                if not ingredient_name or not unit_price:
                     continue
                 
                 # Supabaseにデータを挿入
-                result = supabase.table('cost_master').upsert({
-                    'ingredient_name': row['ingredient_name'].strip(),
+                data = {
+                    'ingredient_name': ingredient_name,
                     'capacity': float(row.get('capacity', 1)),
                     'unit': row.get('unit', '個').strip(),
-                    'unit_price': float(row['unit_price']),
+                    'unit_price': float(unit_price),
                     'updated_at': datetime.now().isoformat()
-                }).execute()
-                
+                }
+                supabase.table('cost_master').upsert(data).execute()
                 count += 1
-            except Exception as e:
-                print(f"データ挿入エラー: {e}")
+            except (ValueError, KeyError) as e:
                 continue
         
         return jsonify({"success": True, "count": count})
     
     except Exception as e:
-        print(f"アップロードエラー: {e}")
         return jsonify({"error": "アップロードに失敗しました"}), 500
+
 
 @app.route("/admin/upload-transaction", methods=['POST'])
 def admin_upload_transaction():
