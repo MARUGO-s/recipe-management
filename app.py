@@ -281,7 +281,7 @@ def admin_upload_transaction():
 
                 supplier = row[8].strip()
                 spec = row[15].strip()
-                unit_column = row[16].strip() if len(row) > 16 else ""  # 単位列（16番目）
+                unit_column = row[20].strip() if len(row) > 20 else ""  # 単位列（21番目、インデックス20）
                 capacity, unit, unit_column_data = extract_capacity_from_spec(spec, product, unit_column)
                 
                 # (商品名, 取引先名) のタプルをキーに重複排除
