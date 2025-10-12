@@ -16,7 +16,7 @@ class GroqRecipeParser:
             raise ValueError("GROQ_API_KEYが設定されていません。")
         
         self.client = Groq(api_key=api_key)
-        self.model = "llama-3.1-8b-instant"  # Groqの高速モデル
+        self.model = "llama3-8b-8192"  # Groqの高速モデル
     
     def parse_recipe_text(self, ocr_text: str) -> Optional[Dict]:
         """

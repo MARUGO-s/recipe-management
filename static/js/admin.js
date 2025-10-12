@@ -359,7 +359,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // データのクリア
     async function clearDatabaseData() {
-        if (!confirm('本当にデータベースの内容をクリアしますか？この操作は元に戻せません。')) {
+        const confirmation = prompt('本当にデータベースの内容をクリアしますか？この操作は元に戻せません。\n\n確認のため、ボックスに「クリア」と入力してください。');
+        
+        if (confirmation !== 'クリア') {
+            showStatus('info', 'クリア操作がキャンセルされました。');
             return;
         }
 

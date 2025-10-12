@@ -38,30 +38,19 @@ class AzureVisionAnalyzer:
             body = {"url": image_url}
             
             # Step 1: 画像解析を開始
-            response = requests.post(analyze_url, headers=headers, json=body, timeout=30)
+            response = requests.post(analyze_url, headers=headers, json=body, timeout=10)
             response.raise_for_status()
             
-            # Step 2: 解析結果を取得（非同期処理のため少し待機）
-            import time
-            time.sleep(2)  # 解析完了を待機
-            
-            # 解析結果URLを取得
             operation_location = response.headers.get('Operation-Location')
             if not operation_location:
                 print("解析結果URLが見つかりません")
                 return None
+
+            # Step 2: 解析結果をポーリングして取得
+            result = self._get_analysis_result(operation_location)
             
-            # Step 3: 結果を取得
-            result_response = requests.get(operation_location, headers={"Ocp-Apim-Subscription-Key": self.key})
-            result_response.raise_for_status()
-            result = result_response.json()
-            
-            # readResultsからテキストを抽出
-            extracted_text = []
-            if "analyzeResult" in result and "readResults" in result["analyzeResult"]:
-                for page in result["analyzeResult"]["readResults"]:
-                    for line in page.get("lines", []):
-                        extracted_text.append(line.get("text", ""))
+            # Step 3: readResultsからテキストを抽出
+            extracted_text = self._extract_text_from_result(result)
             
             return "\n".join(extracted_text) if extracted_text else None
             
@@ -91,30 +80,19 @@ class AzureVisionAnalyzer:
             }
             
             # Step 1: 画像解析を開始
-            response = requests.post(analyze_url, headers=headers, data=image_bytes, timeout=30)
+            response = requests.post(analyze_url, headers=headers, data=image_bytes, timeout=10)
             response.raise_for_status()
             
-            # Step 2: 解析結果を取得（非同期処理のため少し待機）
-            import time
-            time.sleep(2)  # 解析完了を待機
-            
-            # 解析結果URLを取得
             operation_location = response.headers.get('Operation-Location')
             if not operation_location:
                 print("解析結果URLが見つかりません")
                 return None
-            
-            # Step 3: 結果を取得
-            result_response = requests.get(operation_location, headers={"Ocp-Apim-Subscription-Key": self.key})
-            result_response.raise_for_status()
-            result = result_response.json()
-            
-            # readResultsからテキストを抽出
-            extracted_text = []
-            if "analyzeResult" in result and "readResults" in result["analyzeResult"]:
-                for page in result["analyzeResult"]["readResults"]:
-                    for line in page.get("lines", []):
-                        extracted_text.append(line.get("text", ""))
+
+            # Step 2: 解析結果をポーリングして取得
+            result = self._get_analysis_result(operation_location)
+
+            # Step 3: readResultsからテキストを抽出
+            extracted_text = self._extract_text_from_result(result)
             
             return "\n".join(extracted_text) if extracted_text else None
             
@@ -124,6 +102,40 @@ class AzureVisionAnalyzer:
         except Exception as e:
             print(f"画像解析エラー: {e}")
             return None
+
+    def _get_analysis_result(self, operation_url: str) -> Optional[dict]:
+        """解析結果URLをポーリングして最終的な結果を取得する"""
+        import time
+        headers = {"Ocp-Apim-Subscription-Key": self.key}
+        
+        for _ in range(15): # 最大30秒間ポーリング (15回 * 2秒)
+            response = requests.get(operation_url, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            
+            status = result.get('status')
+            if status == 'succeeded':
+                return result
+            if status == 'failed':
+                print("Azure Visionの解析が失敗しました。")
+                return None
+            
+            time.sleep(2)
+        
+        print("Azure Visionの解析がタイムアウトしました。")
+        return None
+
+    def _extract_text_from_result(self, result: Optional[dict]) -> List[str]:
+        """解析結果のJSONからテキスト行を抽出する"""
+        if not result:
+            return []
+
+        extracted_text = []
+        if result.get('analyzeResult') and result['analyzeResult'].get('readResults'):
+            for page in result['analyzeResult']['readResults']:
+                for line in page.get("lines", []):
+                    extracted_text.append(line.get("text", ""))
+        return extracted_text
 
 
 if __name__ == "__main__":

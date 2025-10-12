@@ -10,171 +10,167 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+"""
+Supabaseから原価表を読み込み、材料ごとに原価を計算するモジュール
+"""
+import os
+from typing import Dict, List, Optional
+from decimal import Decimal, InvalidOperation
+from supabase import Client
+from dotenv import load_dotenv
+
+load_dotenv()
+
 class CostCalculator:
-    def __init__(self):
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_KEY")
-        
-        if not supabase_url or not supabase_key:
-            raise ValueError("Supabaseの設定が不足しています。")
-        
-        self.supabase: Client = create_client(supabase_url, supabase_key)
+    def __init__(self, supabase_client: Client):
+        self.supabase: Client = supabase_client
         self.cost_master: Dict[str, Dict] = {}
-    
-    def load_cost_master_from_storage(self, bucket_name: str = "cost-data", file_path: str = "cost_master.csv"):
+
+    def load_cost_master(self):
         """
-        Supabaseストレージから原価表CSVを読み込み、メモリにキャッシュ
-        
-        Args:
-            bucket_name: ストレージバケット名
-            file_path: CSVファイルのパス
-        """
-        try:
-            # ストレージからファイルをダウンロード
-            response = self.supabase.storage.from_(bucket_name).download(file_path)
-            
-            # CSVをパース
-            csv_text = response.decode('utf-8')
-            csv_reader = csv.DictReader(csv_text.splitlines())
-            
-            self.cost_master = {}
-            for row in csv_reader:
-                ingredient_name = row['ingredient_name']
-                self.cost_master[ingredient_name] = {
-                    'unit_price': Decimal(row['unit_price']),
-                    'reference_unit': row['reference_unit'],
-                    'reference_quantity': Decimal(row['reference_quantity'])
-                }
-            
-            print(f"原価表を読み込みました: {len(self.cost_master)}件")
-            
-        except Exception as e:
-            print(f"原価表の読み込みエラー: {e}")
-            # フォールバック: データベーステーブルから読み込み
-            self._load_cost_master_from_db()
-    
-    def _load_cost_master_from_db(self):
-        """
-        Supabaseデータベーステーブルから原価表を読み込み
+        Supabaseデータベーステーブルから原価表を読み込み、メモリにキャッシュ
         """
         try:
             response = self.supabase.table('cost_master').select('*').execute()
             
+            if not response.data:
+                print("原価マスターにデータがありません。")
+                self.cost_master = {}
+                return
+
             self.cost_master = {}
             for row in response.data:
-                ingredient_name = row['ingredient_name']
-                self.cost_master[ingredient_name] = {
-                    'unit_price': Decimal(str(row['unit_price'])),
-                    'reference_unit': row['reference_unit'],
-                    'reference_quantity': Decimal(str(row['reference_quantity']))
-                }
+                ingredient_name = row.get('ingredient_name')
+                if not ingredient_name:
+                    continue
+                
+                try:
+                    self.cost_master[ingredient_name] = {
+                        'unit_price': Decimal(str(row['unit_price'])) if row.get('unit_price') is not None else Decimal('0'),
+                        'capacity': Decimal(str(row['capacity'])) if row.get('capacity') is not None else Decimal('1'),
+                        'unit': row.get('unit', '個')
+                    }
+                except (InvalidOperation, TypeError) as e:
+                    print(f"原価マスターの行変換エラー（スキップ）: {e}, Row: {row}")
             
             print(f"原価表をDBから読み込みました: {len(self.cost_master)}件")
             
         except Exception as e:
             print(f"DBからの原価表読み込みエラー: {e}")
-    
+            self.cost_master = {}
+
     def calculate_ingredient_cost(self, ingredient_name: str, quantity: float, unit: str) -> Optional[Decimal]:
         """
-        材料1つの原価を計算
-        
-        Args:
-            ingredient_name: 材料名
-            quantity: 数量
-            unit: 単位
-            
-        Returns:
-            原価（円）、原価マスタにない場合はNone
+        材料1つの原価を計算（新しいロジック）
         """
-        if ingredient_name not in self.cost_master:
+        # 原価マスターから最も近い材料名を見つける（部分一致）
+        best_match = None
+        for master_name in self.cost_master.keys():
+            if master_name in ingredient_name or ingredient_name in master_name:
+                best_match = master_name
+                break
+        
+        if not best_match:
             print(f"警告: '{ingredient_name}' は原価表に存在しません。")
             return None
+
+        master_data = self.cost_master[best_match]
+        master_price = master_data['unit_price']
+        master_capacity = master_data['capacity']
+        master_unit = master_data['unit']
         
-        master_data = self.cost_master[ingredient_name]
-        unit_price = master_data['unit_price']
-        reference_unit = master_data['reference_unit']
-        reference_quantity = master_data['reference_quantity']
+        # 数量をDecimalに変換
+        decimal_quantity = Decimal(str(quantity))
+
+        # 単位を正規化
+        normalized_request_unit = self._normalize_unit(unit)
+        normalized_master_unit = self._normalize_unit(master_unit)
+
+        # 単位が同じカテゴリ（重量、容量など）かチェック
+        if self._get_unit_category(normalized_request_unit) != self._get_unit_category(normalized_master_unit):
+            print(f"警告: '{ingredient_name}' の単位変換ができません ({unit} -> {master_unit}) - カテゴリ不一致")
+            return None
+
+        # 基準単位（gまたはml）に変換
+        converted_quantity = self._convert_to_base_unit(decimal_quantity, normalized_request_unit)
+        converted_master_capacity = self._convert_to_base_unit(master_capacity, normalized_master_unit)
+
+        if converted_quantity is None or converted_master_capacity is None or converted_master_capacity == 0:
+            print(f"警告: '{ingredient_name}' の単位変換に失敗しました。")
+            return None
+
+        # 基準単位あたりの単価を計算
+        price_per_base_unit = master_price / converted_master_capacity
         
-        # 単位が一致する場合
-        if unit == reference_unit:
-            cost = (Decimal(str(quantity)) / reference_quantity) * unit_price
-            return cost.quantize(Decimal('0.01'))
-        
-        # 単位変換が必要な場合（簡易版）
-        converted_quantity = self._convert_unit(quantity, unit, reference_unit)
-        if converted_quantity is not None:
-            cost = (Decimal(str(converted_quantity)) / reference_quantity) * unit_price
-            return cost.quantize(Decimal('0.01'))
-        
-        print(f"警告: '{ingredient_name}' の単位変換ができません ({unit} -> {reference_unit})")
-        return None
-    
-    def _convert_unit(self, quantity: float, from_unit: str, to_unit: str) -> Optional[float]:
-        """
-        単位変換（簡易版）
-        
-        Args:
-            quantity: 変換前の数量
-            from_unit: 変換前の単位
-            to_unit: 変換後の単位
-            
-        Returns:
-            変換後の数量、変換できない場合はNone
-        """
-        # 重量系
-        weight_units = {
-            'kg': 1000,
-            'g': 1,
-            'mg': 0.001
+        # 材料のコストを計算
+        cost = converted_quantity * price_per_base_unit
+        return cost.quantize(Decimal('0.01'))
+
+    def _normalize_unit(self, unit: str) -> str:
+        """単位を正規化する"""
+        unit = unit.lower()
+        synonyms = {
+            'cc': 'ml',
+            'リットル': 'l',
+            'キログラム': 'kg',
+            'グラム': 'g',
+            'カップ': 'cup'
         }
-        
-        # 容量系
-        volume_units = {
-            'l': 1000,
-            'リットル': 1000,
-            'ml': 1,
-            'cc': 1,
-            '大さじ': 15,
-            '小さじ': 5,
-            'カップ': 200
+        return synonyms.get(unit, unit)
+
+    def _get_unit_category(self, unit: str) -> Optional[str]:
+        """単位のカテゴリ（重量、容量、個数）を返す"""
+        weight_units = ['g', 'kg']
+        volume_units = ['ml', 'l', 'cup', '大さじ', '小さじ']
+        if unit in weight_units:
+            return 'weight'
+        if unit in volume_units:
+            return 'volume'
+        return 'count' # デフォルトは個数系
+
+    def _convert_to_base_unit(self, quantity: Decimal, unit: str) -> Optional[Decimal]:
+        """各種単位を基本単位（gまたはml）に変換する"""
+        # 重量単位 (基準: g)
+        weight_map = {
+            'kg': Decimal('1000'),
+            'g': Decimal('1')
         }
-        
-        # 重量変換
-        if from_unit in weight_units and to_unit in weight_units:
-            return quantity * weight_units[from_unit] / weight_units[to_unit]
-        
-        # 容量変換
-        if from_unit in volume_units and to_unit in volume_units:
-            return quantity * volume_units[from_unit] / volume_units[to_unit]
-        
-        # 単位が同じ場合
-        if from_unit == to_unit:
+        if unit in weight_map:
+            return quantity * weight_map[unit]
+
+        # 容量単位 (基準: ml)
+        volume_map = {
+            'l': Decimal('1000'),
+            'ml': Decimal('1'),
+            'cup': Decimal('200'),      # 1カップ = 200ml
+            '大さじ': Decimal('15'),     # 大さじ1 = 15ml
+            '小さじ': Decimal('5')       # 小さじ1 = 5ml
+        }
+        if unit in volume_map:
+            return quantity * volume_map[unit]
+
+        # 個数系や不明な単位は変換しない（Noneを返す）
+        if self._get_unit_category(unit) == 'count':
+             # 個数系の場合、そのままの数量を返す（基準単位1として扱う）
             return quantity
-        
+
         return None
-    
+
     def calculate_recipe_cost(self, ingredients: List[Dict]) -> Dict:
         """
         レシピ全体の原価を計算
-        
-        Args:
-            ingredients: 材料リスト [{"name": "玉ねぎ", "quantity": 1.0, "unit": "個"}, ...]
-            
-        Returns:
-            {
-                "ingredients_with_cost": [...],
-                "total_cost": 123.45,
-                "missing_ingredients": [...]
-            }
         """
         ingredients_with_cost = []
         total_cost = Decimal('0.00')
         missing_ingredients = []
         
         for ingredient in ingredients:
-            name = ingredient['name']
-            quantity = ingredient['quantity']
-            unit = ingredient['unit']
+            name = ingredient.get('name')
+            quantity = ingredient.get('quantity')
+            unit = ingredient.get('unit')
+
+            if not all([name, quantity, unit]):
+                continue
             
             cost = self.calculate_ingredient_cost(name, quantity, unit)
             
@@ -182,7 +178,9 @@ class CostCalculator:
                 'name': name,
                 'quantity': quantity,
                 'unit': unit,
-                'cost': float(cost) if cost is not None else None
+                'cost': float(cost) if cost is not None else None,
+                'capacity': ingredient.get('capacity'),
+                'capacity_unit': ingredient.get('capacity_unit')
             }
             
             if cost is not None:
@@ -197,6 +195,7 @@ class CostCalculator:
             'total_cost': float(total_cost),
             'missing_ingredients': missing_ingredients
         }
+
 
 
 if __name__ == "__main__":

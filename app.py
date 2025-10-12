@@ -9,11 +9,16 @@ import io
 import re
 from datetime import datetime
 from flask import Flask, request, abort, render_template, jsonify, send_file
-from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
-from linebot.models import (
-    MessageEvent, TextMessage, ImageMessage,
-    TextSendMessage
+from linebot.v3.webhook import WebhookHandler
+from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.messaging import (
+    Configuration,
+    ApiClient,
+    MessagingApi,
+    MessagingApiBlob,
+    ReplyMessageRequest,
+    PushMessageRequest,
+    TextMessage
 )
 from dotenv import load_dotenv
 from azure_vision import AzureVisionAnalyzer
@@ -27,30 +32,32 @@ load_dotenv()
 app = Flask(__name__)
 
 # LINE Bot設定
-line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
+configuration = Configuration(access_token=os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
+api_client = ApiClient(configuration)
+line_bot_api = MessagingApi(api_client)
+line_bot_blob_api = MessagingApiBlob(api_client)
 
 # Supabase設定
-supabase: Client = create_client(
-    os.getenv('SUPABASE_URL'),
-    os.getenv('SUPABASE_KEY')
-)
+supabase_url = os.getenv('SUPABASE_URL')
+supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
+if not supabase_key:
+    print("警告: SUPABASE_SERVICE_KEYが設定されていません。anonキーでフォールバックします。")
+    supabase_key = os.getenv('SUPABASE_KEY')
+
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # 各種サービスの初期化
 azure_analyzer = AzureVisionAnalyzer()
 groq_parser = GroqRecipeParser()
-cost_calculator = CostCalculator()
+cost_calculator = CostCalculator(supabase) # 修正: Supabaseクライアントを渡す
 cost_master_manager = CostMasterManager()
 
 # 原価表の事前読み込み
 try:
-    cost_calculator.load_cost_master_from_storage()
+    cost_calculator.load_cost_master() # 修正: DBから直接読み込む
 except Exception as e:
-    print(f"原価表の初期読み込みエラー: {e}")
-    try:
-        cost_calculator._load_cost_master_from_db()
-    except Exception as e2:
-        print(f"DBからの原価表読み込みもエラー: {e2}")
+    print(f"原価表の初期読み込みでエラーが発生しました: {e}")
 
 
 def extract_capacity_from_spec(spec_text, product_name=""):
@@ -102,6 +109,28 @@ def extract_capacity_from_spec(spec_text, product_name=""):
     
     # デフォルト値
     return (1, '個')
+
+
+def get_user_state(user_id):
+    """ユーザーの状態をDBから取得"""
+    try:
+        result = supabase.table('conversation_state').select('state').eq('user_id', user_id).execute()
+        if result.data:
+            return result.data[0].get('state', {})
+    except Exception as e:
+        print(f"ユーザー状態の取得エラー: {e}")
+    return {}
+
+def set_user_state(user_id, state):
+    """ユーザーの状態をDBに保存"""
+    try:
+        supabase.table('conversation_state').upsert({
+            'user_id': user_id,
+            'state': state
+        }).execute()
+    except Exception as e:
+        print(f"ユーザー状態の保存エラー: {e}")
+
 
 
 @app.route("/", methods=['GET'])
@@ -203,7 +232,7 @@ def admin_upload():
 
 @app.route("/admin/upload-transaction", methods=['POST'])
 def admin_upload_transaction():
-    """取引データCSVファイルのアップロード（材料情報抽出）"""
+    """取引データCSVファイルのアップロード（特定フォーマット対応）"""
     try:
         if 'file' not in request.files:
             return jsonify({"error": "ファイルが選択されていません"}), 400
@@ -215,142 +244,68 @@ def admin_upload_transaction():
         if not file.filename.lower().endswith('.csv'):
             return jsonify({"error": "CSVファイルのみアップロード可能です"}), 400
         
-        # CSVファイルの読み込み
-        csv_data = file.read().decode('utf-8-sig')
-        csv_reader = csv.DictReader(io.StringIO(csv_data))
+        # 文字コードをcp932としてデコード
+        try:
+            csv_data = file.read().decode('cp932')
+        except UnicodeDecodeError:
+            # cp932で失敗した場合、utf-8-sigを試す
+            file.seek(0)
+            csv_data = file.read().decode('utf-8-sig')
+
+        csv_reader = csv.reader(io.StringIO(csv_data))
         
-        # 列マッピング（デフォルト）
-        column_mapping = {
-            'supplier': '取引先名',
-            'product': '商品名', 
-            'price': '単価',
-            'unit': '単位',
-            'spec': '規格'
-        }
-        
-        # 実際の列名を検出
-        if csv_reader.fieldnames:
-            detected_columns = {}
-            for key, expected_name in column_mapping.items():
-                for field in csv_reader.fieldnames:
-                    if expected_name in field:
-                        detected_columns[key] = field
-                        break
-            
-            # 列が見つからない場合はフィールド名から推測
-            if not detected_columns.get('supplier'):
-                for field in csv_reader.fieldnames:
-                    if '取引先' in field or '仕入先' in field:
-                        detected_columns['supplier'] = field
-                        break
-            
-            if not detected_columns.get('product'):
-                for field in csv_reader.fieldnames:
-                    if '商品名' in field or '品名' in field:
-                        detected_columns['product'] = field
-                        break
-                        
-            if not detected_columns.get('price'):
-                for field in csv_reader.fieldnames:
-                    if '単価' in field or '価格' in field:
-                        detected_columns['price'] = field
-                        break
-                        
-            if not detected_columns.get('unit'):
-                for field in csv_reader.fieldnames:
-                    if '単位' in field:
-                        detected_columns['unit'] = field
-                        break
-            
-            if not detected_columns.get('spec'):
-                for field in csv_reader.fieldnames:
-                    if '規格' in field:
-                        detected_columns['spec'] = field
-                        break
-            
-            column_mapping = detected_columns
-        
-        # データの抽出と変換
         extracted_materials = {}
         count = 0
         
         for row in csv_reader:
             try:
-                # 必要な列が存在するかチェック
-                if not all(key in column_mapping and column_mapping[key] in row for key in ['supplier', 'product', 'price']):
+                # データ行（Dで始まる）のみを処理
+                if not row or row[0] != 'D':
                     continue
-                
-                supplier = row[column_mapping['supplier']].strip()
-                product = row[column_mapping['product']].strip()
-                price_str = row[column_mapping['price']].strip()
-                unit = row.get(column_mapping.get('unit', ''), '').strip() if column_mapping.get('unit') else '個'
-                spec = row.get(column_mapping.get('spec', ''), '').strip() if column_mapping.get('spec') else ''
-                
+
+                # 固定列からデータを抽出
+                price_str = row[18].strip()
+                product = row[14].strip()
+
+                # 商品名か単価が空ならスキップ
                 if not product or not price_str:
                     continue
                 
-                # 単価を数値に変換
-                try:
-                    price = float(price_str.replace(',', ''))
-                except ValueError:
-                    continue
+                price = float(price_str.replace(',', ''))
+                if price == 0:
+                    continue # 単価0は無視
+
+                supplier = row[8].strip()
+                spec = row[15].strip()
                 
-                # 材料名の正規化（取引先名を含める場合）
-                material_name = f"{product}"
-                if supplier and supplier != product:
-                    material_name = f"{product}（{supplier}）"
+                # 材料名の正規化（取引先名を含める）
+                material_name = f"{product}（{supplier}）" if supplier else product
                 
                 # 規格と商品名から容量を抽出
-                extracted_capacity, extracted_unit = extract_capacity_from_spec(spec, product)
+                capacity, unit = extract_capacity_from_spec(spec, product)
                 
-                # 抽出できた場合はそれを使用、できなかった場合は単位から推定
-                if extracted_capacity > 1 or extracted_unit != '個':
-                    capacity = extracted_capacity
-                    unit = extracted_unit
-                else:
-                    # 従来の単位からの推定
-                    capacity = 1
-                    if unit:
-                        if 'kg' in unit:
-                            capacity = 1000
-                            unit = 'g'
-                        elif 'g' in unit:
-                            capacity = 1
-                        elif 'L' in unit or 'l' in unit:
-                            capacity = 1000
-                            unit = 'ml'
-                        elif 'ml' in unit:
-                            capacity = 1
-                        elif '個' in unit or '本' in unit or '枚' in unit:
-                            capacity = 1
-                            unit = '個'
-                
-                # 重複チェック
+                # 重複チェック（より安い価格で更新）
                 if material_name in extracted_materials:
-                    # より安い価格で更新
                     if price < extracted_materials[material_name]['price']:
                         extracted_materials[material_name] = {
                             'name': material_name,
                             'capacity': capacity,
                             'unit': unit,
-                            'price': price,
-                            'supplier': supplier
+                            'price': price
                         }
                 else:
                     extracted_materials[material_name] = {
                         'name': material_name,
                         'capacity': capacity,
                         'unit': unit,
-                        'price': price,
-                        'supplier': supplier
+                        'price': price
                     }
-                
                 count += 1
                 
-            except Exception as e:
-                print(f"行処理エラー: {e}")
+            except (IndexError, ValueError) as e:
+                print(f"行処理エラー（スキップ）: {e}, Row: {row}")
                 continue
-        
+
         # データベースに一括で保存
         saved_count = 0
         items_to_upsert = list(extracted_materials.values())
@@ -359,7 +314,6 @@ def admin_upload_transaction():
             try:
                 print(f"Upserting {len(items_to_upsert)} unique items from transactions in a batch.")
                 
-                # Supabaseに渡す形式に変換
                 supabase_items = [
                     {
                         'ingredient_name': item['name'],
@@ -375,19 +329,19 @@ def admin_upload_transaction():
                 saved_count = len(result.data)
             except Exception as e:
                 print(f"一括保存エラー: {e}")
-        
+
         return jsonify({
             "success": True, 
             "processed": count,
             "extracted": len(extracted_materials),
-            "saved": saved_count,
-            "column_mapping": column_mapping
+            "saved": saved_count
         })
     
     except Exception as e:
         print(f"取引データアップロードエラー: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": "取引データのアップロードに失敗しました"}), 500
-
 @app.route("/admin/template", methods=['GET'])
 def admin_template():
     """CSVテンプレートのダウンロード"""
@@ -729,14 +683,15 @@ def admin_export():
 def admin_clear():
     """データベース内容のクリア"""
     try:
-        # 原価マスターのクリア
-        supabase.table('cost_master').delete().neq('ingredient_name', '').execute()
-        
-        # レシピのクリア
-        supabase.table('recipes').delete().neq('dish_name', '').execute()
-        
-        # 材料のクリア
+        # 外部キー制約のため、子テーブルから先に削除する
+        # 1. 材料のクリア
         supabase.table('ingredients').delete().neq('ingredient_name', '').execute()
+
+        # 2. レシピのクリア
+        supabase.table('recipes').delete().neq('recipe_name', '').execute()
+
+        # 3. 原価マスターのクリア
+        supabase.table('cost_master').delete().neq('ingredient_name', '').execute()
         
         return jsonify({"success": True, "message": "データベースをクリアしました"})
     
@@ -770,7 +725,7 @@ def handle_image_message(event):
     try:
         # 画像の取得
         message_id = event.message.id
-        message_content = line_bot_api.get_message_content(message_id)
+        message_content = line_bot_blob_api.get_message_content(message_id)
         
         # 画像データを取得
         image_bytes = b''
@@ -779,18 +734,18 @@ def handle_image_message(event):
         
         # ステップ1: Azure Visionで画像解析
         reply_message = "画像を受け取りました。解析中です..."
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=reply_message)
-        )
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=reply_message)]
+        ))
         
         ocr_text = azure_analyzer.analyze_image_from_bytes(image_bytes)
         
         if not ocr_text:
-            line_bot_api.push_message(
-                event.source.user_id,
-                TextSendMessage(text="画像からテキストを抽出できませんでした。")
-            )
+            line_bot_api.push_message(PushMessageRequest(
+                to=event.source.user_id,
+                messages=[TextMessage(text="画像からテキストを抽出できませんでした。")]
+            ))
             return
         
         print(f"OCR結果: {ocr_text}")
@@ -799,10 +754,10 @@ def handle_image_message(event):
         recipe_data = groq_parser.parse_recipe_text(ocr_text)
         
         if not recipe_data:
-            line_bot_api.push_message(
-                event.source.user_id,
-                TextSendMessage(text="レシピ情報を解析できませんでした。")
-            )
+            line_bot_api.push_message(PushMessageRequest(
+                to=event.source.user_id,
+                messages=[TextMessage(text="レシピ情報を解析できませんでした。")]
+            ))
             return
         
         print(f"解析されたレシピ: {recipe_data}")
@@ -818,6 +773,17 @@ def handle_image_message(event):
             cost_result['ingredients_with_cost']
         )
         
+        # 会話状態を保存
+        user_id = event.source.user_id
+        new_state = {
+            'last_action': 'recipe_analysis',
+            'recipe_name': recipe_data['recipe_name'],
+            'servings': recipe_data['servings'],
+            'cost_result': cost_result,
+            'timestamp': datetime.now().isoformat()
+        }
+        set_user_state(user_id, new_state)
+
         # ステップ5: LINEで結果を返信
         response_message = format_cost_response(
             recipe_data['recipe_name'],
@@ -827,24 +793,32 @@ def handle_image_message(event):
             cost_result['missing_ingredients']
         )
         
-        line_bot_api.push_message(
-            event.source.user_id,
-            TextSendMessage(text=response_message)
-        )
+        line_bot_api.push_message(PushMessageRequest(
+            to=event.source.user_id,
+            messages=[TextMessage(text=response_message)]
+        ))
         
     except Exception as e:
         print(f"エラー: {e}")
-        line_bot_api.push_message(
-            event.source.user_id,
-            TextSendMessage(text=f"エラーが発生しました: {str(e)}")
-        )
+        line_bot_api.push_message(PushMessageRequest(
+            to=event.source.user_id,
+            messages=[TextMessage(text=f"エラーが発生しました: {str(e)}")]
+        ))
 
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text_message(event):
     """テキストメッセージの処理"""
     text = event.message.text.strip()
-    
+    user_id = event.source.user_id
+
+    # まず、フォローアップ質問かどうかを判定
+    follow_up_answer = handle_follow_up_question(user_id, text)
+    if follow_up_answer:
+        line_bot_api.reply_message(ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=follow_up_answer)]))
+        return
+
+    # フォローアップでない場合は、通常のコマンド処理を続ける
     # ヘルプコマンド
     if text == "ヘルプ" or text.lower() == "help":
         help_message = """【レシピ原価計算Bot】
@@ -872,10 +846,10 @@ def handle_text_message(event):
 
 ※原価表に登録されていない材料は計算されません"""
         
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=help_message)
-        )
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=help_message)]
+        ))
         return
     
     # 原価追加コマンド
@@ -911,20 +885,20 @@ def handle_search_ingredient(event, search_term: str):
     try:
         # 検索キーワードが短すぎる場合はスキップ
         if len(search_term) < 2:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="レシピの画像を送信するか、「ヘルプ」と入力してください。")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="レシピの画像を送信するか、「ヘルプ」と入力してください。")]
+            ))
             return
         
         # 材料名で検索
         results = cost_master_manager.search_costs(search_term, limit=5)
         
         if not results:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=f"「{search_term}」に一致する材料が見つかりませんでした。\n\n原価表に登録するには:\n「追加 {search_term} 価格/単位」と入力してください。")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=f"「{search_term}」に一致する材料が見つかりませんでした。\n\n原価表に登録するには:\n「追加 {search_term} 価格/単位」と入力してください。")]
+            ))
             return
         
         # 結果をフォーマット
@@ -965,17 +939,18 @@ def handle_search_ingredient(event, search_term: str):
                 response += f"{i}. {ingredient_name}{supplier}\n"
                 response += f"   {cost['capacity']}{cost['unit']} = ¥{cost['unit_price']:.0f}\n\n"
         
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=response)
-        )
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=response)]
+        ))
         
     except Exception as e:
         print(f"材料検索エラー: {e}")
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"検索中にエラーが発生しました: {str(e)}")
-        )
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=f"検索中にエラーが発生しました: {str(e)}")]
+        ))
+
 
 
 def handle_add_cost_command(event, text: str):
@@ -988,25 +963,25 @@ def handle_add_cost_command(event, text: str):
         cost_text = text.replace("追加 ", "").replace("追加　", "").strip()
         
         if not cost_text:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="原価情報を入力してください。\n例: 「追加 トマト 100円/個」")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="原価情報を入力してください。\n例: 「追加 トマト 100円/個」")]
+            ))
             return
         
         # Groqで解析
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="原価情報を解析中です...")
-        )
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text="原価情報を解析中です...")]
+        ))
         
         cost_data = cost_master_manager.parse_cost_text(cost_text)
         
         if not cost_data:
-            line_bot_api.push_message(
-                event.source.user_id,
-                TextSendMessage(text="原価情報の解析に失敗しました。\n形式を確認してください。\n例: 「トマト 100円/個」")
-            )
+            line_bot_api.push_message(PushMessageRequest(
+                to=event.source.user_id,
+                messages=[TextMessage(text="原価情報の解析に失敗しました。\n形式を確認してください。\n例: 「トマト 100円/個」")]
+            ))
             return
         
         # 原価表に追加
@@ -1020,7 +995,7 @@ def handle_add_cost_command(event, text: str):
         if success:
             # 原価計算機のキャッシュも更新
             try:
-                cost_calculator._load_cost_master_from_db()
+                cost_calculator.load_cost_master()
             except:
                 pass
             
@@ -1030,22 +1005,23 @@ def handle_add_cost_command(event, text: str):
 【容量】{cost_data['capacity']}{cost_data['unit']}
 【単価】¥{cost_data['unit_price']:.2f}"""
             
-            line_bot_api.push_message(
-                event.source.user_id,
-                TextSendMessage(text=response)
-            )
+            line_bot_api.push_message(PushMessageRequest(
+                to=event.source.user_id,
+                messages=[TextMessage(text=response)]
+            ))
         else:
-            line_bot_api.push_message(
-                event.source.user_id,
-                TextSendMessage(text="原価表への登録に失敗しました。")
-            )
+            line_bot_api.push_message(PushMessageRequest(
+                to=event.source.user_id,
+                messages=[TextMessage(text="原価表への登録に失敗しました。")]
+            ))
             
     except Exception as e:
         print(f"原価追加エラー: {e}")
-        line_bot_api.push_message(
-            event.source.user_id,
-            TextSendMessage(text=f"エラーが発生しました: {str(e)}")
-        )
+        line_bot_api.push_message(PushMessageRequest(
+            to=event.source.user_id,
+            messages=[TextMessage(text=f"エラーが発生しました: {str(e)}")]
+        ))
+
 
 
 def handle_check_cost_command(event, text: str):
@@ -1058,10 +1034,10 @@ def handle_check_cost_command(event, text: str):
         ingredient_name = text.replace("確認 ", "").replace("確認　", "").strip()
         
         if not ingredient_name:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="材料名を入力してください。\n例: 「確認 トマト」")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="材料名を入力してください。\n例: 「確認 トマト」")]
+            ))
             return
         
         # 原価表から取得
@@ -1075,22 +1051,22 @@ def handle_check_cost_command(event, text: str):
 【単価】¥{cost_info['unit_price']:.2f}
 【更新日】{cost_info.get('updated_at', 'N/A')}"""
             
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=response)
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=response)]
+            ))
         else:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=f"「{ingredient_name}」は原価表に登録されていません。")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=f"「{ingredient_name}」は原価表に登録されていません。")]
+            ))
             
     except Exception as e:
         print(f"原価確認エラー: {e}")
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"エラーが発生しました: {str(e)}")
-        )
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=f"エラーが発生しました: {str(e)}")]
+        ))
 
 
 def handle_delete_cost_command(event, text: str):
@@ -1103,20 +1079,20 @@ def handle_delete_cost_command(event, text: str):
         ingredient_name = text.replace("削除 ", "").replace("削除　", "").strip()
         
         if not ingredient_name:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="材料名を入力してください。\n例: 「削除 トマト」")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="材料名を入力してください。\n例: 「削除 トマト」")]
+            ))
             return
         
         # 削除前に確認
         cost_info = cost_master_manager.get_cost_info(ingredient_name)
         
         if not cost_info:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=f"「{ingredient_name}」は原価表に登録されていません。")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=f"「{ingredient_name}」は原価表に登録されていません。")]
+            ))
             return
         
         # 削除実行
@@ -1125,26 +1101,26 @@ def handle_delete_cost_command(event, text: str):
         if success:
             # 原価計算機のキャッシュも更新
             try:
-                cost_calculator._load_cost_master_from_db()
+                cost_calculator.load_cost_master()
             except:
                 pass
             
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=f"✅ 「{ingredient_name}」を原価表から削除しました。")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=f"✅ 「{ingredient_name}」を原価表から削除しました。")]
+            ))
         else:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="削除に失敗しました。")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="削除に失敗しました。")]
+            ))
             
     except Exception as e:
         print(f"原価削除エラー: {e}")
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"エラーが発生しました: {str(e)}")
-        )
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=f"エラーが発生しました: {str(e)}")]
+        ))
 
 
 def handle_list_cost_command(event):
@@ -1155,10 +1131,10 @@ def handle_list_cost_command(event):
         costs = cost_master_manager.list_all_costs(limit=30)
         
         if not costs:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="原価表に登録されている材料はありません。")
-            )
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="原価表に登録されている材料はありません。")]
+            ))
             return
         
         # 一覧をフォーマット
@@ -1172,17 +1148,17 @@ def handle_list_cost_command(event):
                 response += f"\n... 他{len(costs) - 20}件"
                 break
         
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=response)
-        )
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=response)]
+        ))
         
     except Exception as e:
         print(f"原価一覧エラー: {e}")
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"エラーが発生しました: {str(e)}")
-        )
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=f"エラーが発生しました: {str(e)}")]
+        ))
 
 
 def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, ingredients: list) -> str:
@@ -1254,6 +1230,96 @@ def format_cost_response(recipe_name: str, servings: int, ingredients: list, tot
         message += f"\n※未登録材料: {', '.join(missing)}"
     
     return message
+
+
+def handle_follow_up_question(user_id, text):
+    """文脈を考慮したフォローアップ質問を処理する"""
+    state = get_user_state(user_id)
+
+    if not state or state.get('last_action') != 'recipe_analysis':
+        return None # フォローアップ対象外
+
+    # タイムスタンプをチェック（5分以内）
+    from dateutil.parser import isoparse
+    time_diff = datetime.now().astimezone() - isoparse(state.get('timestamp'))
+    if time_diff.total_seconds() > 300:
+        return None
+
+    # LLMでユーザーの質問の意図を解釈
+    intent = interpret_follow_up(text, state.get('recipe_name', ''))
+
+    if intent and intent != 'other':
+        # 意図に基づいて回答を生成
+        return answer_follow_up(intent, state)
+    
+    return None
+
+def interpret_follow_up(user_text, recipe_name):
+    """Groq LLMを使って、ユーザーの質問の意図を解釈する"""
+    try:
+        prompt = f"""ユーザーは直前に「{recipe_name}」というレシピを解析しました。
+ユーザーの次の質問「{user_text}」が、直前のレシピについて何を尋ねているか分類してください。
+
+分類カテゴリ:
+- 'total_cost': 合計原価について
+- 'servings_cost': 1人前の原価について
+- 'ingredients_list': 材料の一覧や内容について
+- 'servings_number': 何人前かについて
+- 'missing_ingredients': 原価計算できなかった材料について
+- 'other': 上記以外、または無関係な質問
+
+必ずカテゴリ名のみを小文字で回答してください。"""
+        
+        response = groq_parser.groq_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama3-8b-8192",
+            temperature=0.0,
+        )
+        intent = response.choices[0].message.content.strip().lower()
+        print(f"フォローアップ意図解釈: {intent}")
+        return intent
+    except Exception as e:
+        print(f"意図解釈エラー: {e}")
+        return 'other'
+
+def answer_follow_up(intent, state):
+    """解釈された意図に基づいて回答を生成する"""
+    recipe_name = state.get('recipe_name', 'そのレシピ')
+    cost_result = state.get('cost_result', {})
+    servings = state.get('servings', 1)
+    servings = servings if servings > 0 else 1
+
+    if intent == 'total_cost':
+        total_cost = cost_result.get('total_cost', 0)
+        return f"「{recipe_name}」の合計原価は、約{total_cost:.2f}円です。"
+
+    elif intent == 'servings_cost':
+        total_cost = cost_result.get('total_cost', 0)
+        servings_cost = total_cost / servings
+        return f"「{recipe_name}」の1人前の原価は、約{servings_cost:.2f}円です。"
+
+    elif intent == 'ingredients_list':
+        ingredients = cost_result.get('ingredients_with_cost', [])
+        if not ingredients:
+            return f"「{recipe_name}」の材料情報が見つかりませんでした。"
+        
+        message = f"【{recipe_name}の材料】\n"
+        for ing in ingredients:
+            cost_str = f"¥{ing['cost']:.2f}" if ing['cost'] is not None else "(未登録)"
+            message += f"・{ing['name']} {ing['quantity']}{ing['unit']} - {cost_str}\n"
+        return message
+
+    elif intent == 'servings_number':
+        return f"「{recipe_name}」は、{servings}人前のレシピとして解析されました。"
+
+    elif intent == 'missing_ingredients':
+        missing = cost_result.get('missing_ingredients', [])
+        if not missing:
+            return f"「{recipe_name}」の計算では、原価が不明な材料はありませんでした。"
+        else:
+            return f"「{recipe_name}」の計算で原価が不明だった材料は次の通りです：\n・{', '.join(missing)}"
+
+    return None # No answer for this intent
 
 
 if __name__ == "__main__":

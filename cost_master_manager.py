@@ -15,7 +15,12 @@ load_dotenv()
 class CostMasterManager:
     def __init__(self):
         supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_KEY")
+        # サービスキーを優先的に使用し、なければanonキーにフォールバック
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+        if not supabase_key:
+            print("警告: CostMasterManagerがサービスキーではなくanonキーを使用しています。")
+            supabase_key = os.getenv("SUPABASE_KEY")
+
         groq_api_key = os.getenv("GROQ_API_KEY")
         
         if not supabase_url or not supabase_key:
@@ -158,24 +163,9 @@ class CostMasterManager:
     def add_or_update_cost(self, ingredient_name: str, capacity: float, 
                            unit: str, unit_price: float) -> bool:
         """
-        原価表に材料を追加または更新
-        
-        Args:
-            ingredient_name: 材料名
-            capacity: 容量
-            unit: 単位
-            unit_price: 単価
-            
-        Returns:
-            成功した場合True
+        原価表に材料を追加または更新（upsertを使用）
         """
         try:
-            # 既存の材料をチェック
-            existing = self.supabase.table('cost_master')\
-                .select('*')\
-                .eq('ingredient_name', ingredient_name)\
-                .execute()
-            
             from datetime import datetime
             data = {
                 'ingredient_name': ingredient_name,
@@ -185,22 +175,12 @@ class CostMasterManager:
                 'updated_at': datetime.now().isoformat()
             }
             
-            if existing.data and len(existing.data) > 0:
-                # 更新
-                self.supabase.table('cost_master')\
-                    .update(data)\
-                    .eq('ingredient_name', ingredient_name)\
-                    .execute()
-                print(f"原価表を更新しました: {ingredient_name}")
-                return True
-            else:
-                # 新規追加
-                self.supabase.table('cost_master').insert(data).execute()
-                print(f"原価表に追加しました: {ingredient_name}")
-                return True
+            self.supabase.table('cost_master').upsert(data, on_conflict='ingredient_name').execute()
+            print(f"原価表をUpsertしました: {ingredient_name}")
+            return True
                 
         except Exception as e:
-            print(f"原価表への追加エラー: {e}")
+            print(f"原価表へのUpsertエラー: {e}")
             return False
     
     def get_cost_info(self, ingredient_name: str) -> Optional[Dict]:
