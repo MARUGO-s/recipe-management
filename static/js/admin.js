@@ -1,5 +1,9 @@
 // データベース管理システム JavaScript
+console.log('🚀 Admin.js loaded successfully');
+
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('📋 DOM Content Loaded');
+    
     // 要素の取得
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
@@ -13,6 +17,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const exportDataBtn = document.getElementById('exportDataBtn');
     const clearDataBtn = document.getElementById('clearDataBtn');
     
+    // 要素の存在確認
+    console.log('✅ Elements check:', {
+        uploadArea: !!uploadArea,
+        fileInput: !!fileInput,
+        uploadBtn: !!uploadBtn,
+        downloadBtn: !!downloadBtn,
+        refreshBtn: !!refreshBtn,
+        viewDataBtn: !!viewDataBtn,
+        exportDataBtn: !!exportDataBtn,
+        clearDataBtn: !!clearDataBtn
+    });
+    
     let selectedFile = null;
 
     // ファイルアップロード関連のイベント
@@ -23,15 +39,39 @@ document.addEventListener('DOMContentLoaded', function() {
     fileInput.addEventListener('change', handleFileSelect);
 
     // ボタンイベント
-    uploadBtn.addEventListener('click', uploadFile);
-    downloadBtn.addEventListener('click', downloadTemplate);
-    downloadTransactionBtn.addEventListener('click', downloadTransactionTemplate);
-    refreshBtn.addEventListener('click', refreshDatabaseStats);
-    viewDataBtn.addEventListener('click', viewDatabaseData);
-    exportDataBtn.addEventListener('click', exportDatabaseData);
-    clearDataBtn.addEventListener('click', clearDatabaseData);
+    uploadBtn.addEventListener('click', () => {
+        console.log('🔼 Upload button clicked');
+        uploadFile();
+    });
+    downloadBtn.addEventListener('click', () => {
+        console.log('📥 Download button clicked');
+        downloadTemplate();
+    });
+    downloadTransactionBtn.addEventListener('click', () => {
+        console.log('📥 Transaction template button clicked');
+        downloadTransactionTemplate();
+    });
+    refreshBtn.addEventListener('click', () => {
+        console.log('🔄 Refresh button clicked');
+        refreshDatabaseStats();
+    });
+    viewDataBtn.addEventListener('click', () => {
+        console.log('👁️ View data button clicked');
+        viewDatabaseData();
+    });
+    exportDataBtn.addEventListener('click', () => {
+        console.log('💾 Export button clicked');
+        exportDatabaseData();
+    });
+    clearDataBtn.addEventListener('click', () => {
+        console.log('🗑️ Clear button clicked');
+        clearDatabaseData();
+    });
+
+    console.log('✅ All event listeners attached');
 
     // 初期化
+    console.log('🔄 Initializing stats...');
     refreshDatabaseStats();
 
     // ドラッグ&ドロップ処理
@@ -91,7 +131,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ファイルアップロード
     async function uploadFile() {
+        console.log('📤 uploadFile() called');
+        
         if (!selectedFile) {
+            console.error('❌ No file selected');
             showStatus('error', 'ファイルが選択されていません。');
             return;
         }
@@ -99,6 +142,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // アップロードタイプを取得
         const uploadType = document.querySelector('input[name="uploadType"]:checked').value;
         const endpoint = uploadType === 'transaction' ? '/admin/upload-transaction' : '/admin/upload';
+        
+        console.log('📋 Upload details:', {
+            file: selectedFile.name,
+            size: selectedFile.size,
+            type: uploadType,
+            endpoint: endpoint
+        });
 
         const formData = new FormData();
         formData.append('file', selectedFile);
@@ -113,12 +163,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 showStatus('info', 'ファイルをアップロード中...');
             }
 
+            console.log('🌐 Sending fetch request to:', endpoint);
+            
             const response = await fetch(endpoint, {
                 method: 'POST',
                 body: formData
             });
+            
+            console.log('📨 Response received:', {
+                status: response.status,
+                ok: response.ok,
+                statusText: response.statusText
+            });
 
             const result = await response.json();
+            console.log('📊 Response data:', result);
 
             if (response.ok) {
                 if (uploadType === 'transaction') {
