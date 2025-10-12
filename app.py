@@ -1417,54 +1417,32 @@ def handle_search_ingredient(event, search_term: str):
                     messages=[TextMessage(text=f"「{search_term}」の検索結果を取得しましたが、表示に失敗しました。")]
                 ))
         else:
-            # 複数候補がある場合
-            response = f"🔍 「{search_term}」の検索結果（{len(results)}件）\n\n"
+            # 複数候補がある場合もFlex Messageで統一表示
+            # 検索結果の件数を最初に送信
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=f"🔍 「{search_term}」の検索結果（{len(results)}件）")]
+            ))
             
-            for i, cost in enumerate(results, 1):
-                ingredient_name = cost['ingredient_name']
-                supplier_name = cost.get('suppliers', {}).get('name') if cost.get('suppliers') else None
-                supplier_str = f"（{supplier_name}）" if supplier_name else ""
-
-                # 単位情報の表示
-                unit_column = cost.get('unit_column')  # Noneの可能性も考慮
-                capacity = cost.get('capacity', 1)
-                unit = cost.get('unit', '個')
+            # 各材料をFlex Messageで送信（最大5件まで）
+            for i, cost in enumerate(results[:5], 1):
+                flex_container = create_ingredient_flex_message(cost, is_single=False)
                 
-                # 容量の表示（0または1の場合は表示しない、整数で表示）
-                if capacity == 0 or capacity == 1 or capacity == 1.0:
-                    capacity_str = ""
-                else:
-                    capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
-                
-                # 単位列を優先表示（unit_columnが存在する場合は必ずそれを使う）
-                # unit_columnがNoneでない場合は、空文字列でもそれを尊重する
-                if unit_column is not None:
-                    unit_display = unit_column if unit_column else "個"  # 単位のみ表示
-                else:
-                    unit_display = unit  # 単位のみ表示
-                
-                # 単価は整数で表示
-                unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
-                
-                response += f"{i}. {ingredient_name}{supplier_str}\n"
-                # 容量がある場合のみ表示
-                if capacity_str:
-                    response += f"   容量: {capacity_str}, 単位: {unit_display} = ¥{unit_price}"
-                else:
-                    response += f"   単位: {unit_display} = ¥{unit_price}"
-                
-                # 規格がある場合は表示
-                if cost.get('spec'):
-                    response += f"\n   【規格】{cost['spec']}"
-                
-                # 修正リンクを追加
-                form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?id={cost['id']}"
-                response += f"\n   📝 修正: {form_url}\n\n"
-        
-        line_bot_api.reply_message(ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=response)]
-        ))
+                if flex_container:
+                    line_bot_api.push_message(PushMessageRequest(
+                        to=event.source.user_id,
+                        messages=[FlexMessage(
+                            alt_text=f"「{search_term}」の検索結果 {i}",
+                            contents=FlexContainer.from_dict(flex_container)
+                        )]
+                    ))
+            
+            # 6件以上ある場合は追加情報を送信
+            if len(results) > 5:
+                line_bot_api.push_message(PushMessageRequest(
+                    to=event.source.user_id,
+                    messages=[TextMessage(text=f"... 他{len(results) - 5}件あります。より具体的な材料名で検索してください。")]
+                ))
         
     except Exception as e:
         print(f"❌ 材料検索エラー: {e}")
