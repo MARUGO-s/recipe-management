@@ -277,7 +277,7 @@
                     <i class="fas fa-save"></i> {{ '修正' if is_edit else '追加' }}する
                 </button>
                 
-                <button type="button" class="btn btn-secondary" onclick="history.back()">
+                <button type="button" class="btn btn-secondary" onclick="closeWindow()">
                     <i class="fas fa-arrow-left"></i> 戻る
                 </button>
             </form>
@@ -290,7 +290,7 @@
             </div>
             
             <div class="back-to-line">
-                <a href="#" onclick="openLineApp()">
+                <a href="#" onclick="closeWindow()">
                     <i class="fas fa-comment"></i> LINEに戻る
                 </a>
             </div>
@@ -305,14 +305,26 @@
             this.style.display = 'none';
         });
         
-        // LINEアプリを開く
-        function openLineApp() {
-            if (navigator.userAgent.match(/iPhone|iPad|iPod|Android/i)) {
-                // モバイルの場合
+        // ウィンドウを閉じる（×ボタンと同じ機能）
+        function closeWindow() {
+            try {
+                // ブラウザタブを閉じる
+                if (window.opener) {
+                    // ポップアップで開かれた場合
+                    window.close();
+                } else {
+                    // 通常のタブの場合
+                    if (navigator.userAgent.match(/iPhone|iPad|iPod|Android/i)) {
+                        // モバイルの場合：LINEアプリに戻る
+                        window.location.href = 'line://';
+                    } else {
+                        // PCの場合：ブラウザタブを閉じる
+                        window.close();
+                    }
+                }
+            } catch (e) {
+                // エラーの場合はLINEアプリに戻る
                 window.location.href = 'line://';
-            } else {
-                // PCの場合
-                alert('LINEアプリでこのページを開いてください');
             }
         }
         
