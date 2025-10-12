@@ -272,6 +272,31 @@ class CostMasterManager:
         except Exception as e:
             print(f"原価表の取得エラー: {e}")
             return []
+    
+    def search_costs(self, search_term: str, limit: int = 10) -> list:
+        """
+        材料名で原価表を検索（部分一致）
+        
+        Args:
+            search_term: 検索キーワード
+            limit: 取得件数の上限
+            
+        Returns:
+            原価情報のリスト
+        """
+        try:
+            response = self.supabase.table('cost_master')\
+                .select('*')\
+                .ilike('ingredient_name', f'%{search_term}%')\
+                .order('ingredient_name')\
+                .limit(limit)\
+                .execute()
+            
+            return response.data
+            
+        except Exception as e:
+            print(f"原価表の検索エラー: {e}")
+            return []
 
 
 if __name__ == "__main__":

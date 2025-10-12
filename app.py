@@ -797,6 +797,11 @@ def handle_text_message(event):
 レシピの画像を送信してください
 → 自動的に解析し、原価を計算します
 
+🔍 材料検索:
+材料名を入力するだけで検索
+  例: 「トマト」「豚肉」「牛乳」
+→ 単価・容量・取引先を表示
+
 💰 原価表の管理:
 ・追加: 「追加 材料名 価格/単位」
   例: 「追加 トマト 100円/個」
@@ -837,11 +842,84 @@ def handle_text_message(event):
         handle_list_cost_command(event)
         return
     
-    # その他のテキスト
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text="レシピの画像を送信するか、「ヘルプ」と入力してください。")
-    )
+    # 材料名検索（その他のテキスト）
+    # コマンド以外のテキストは材料名として検索
+    handle_search_ingredient(event, text)
+
+
+def handle_search_ingredient(event, search_term: str):
+    """
+    材料名検索の処理
+    例: 「トマト」と入力すると関連する材料を検索
+    """
+    try:
+        # 検索キーワードが短すぎる場合はスキップ
+        if len(search_term) < 2:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="レシピの画像を送信するか、「ヘルプ」と入力してください。")
+            )
+            return
+        
+        # 材料名で検索
+        results = cost_master_manager.search_costs(search_term, limit=5)
+        
+        if not results:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"「{search_term}」に一致する材料が見つかりませんでした。\n\n原価表に登録するには:\n「追加 {search_term} 価格/単位」と入力してください。")
+            )
+            return
+        
+        # 結果をフォーマット
+        if len(results) == 1:
+            # 完全一致または1件のみの場合
+            cost = results[0]
+            
+            # 取引先名を抽出（材料名に「（取引先名）」が含まれている場合）
+            ingredient_name = cost['ingredient_name']
+            supplier = ""
+            if "（" in ingredient_name and "）" in ingredient_name:
+                parts = ingredient_name.split("（")
+                ingredient_name = parts[0]
+                supplier = parts[1].replace("）", "")
+            
+            response = f"""📋 {ingredient_name}
+
+【容量】{cost['capacity']}{cost['unit']}
+【単価】¥{cost['unit_price']:.2f}"""
+            
+            if supplier:
+                response += f"\n【取引先】{supplier}"
+            
+            if cost.get('updated_at'):
+                response += f"\n【更新日】{cost['updated_at'][:10]}"
+        else:
+            # 複数候補がある場合
+            response = f"🔍 「{search_term}」の検索結果（{len(results)}件）\n\n"
+            
+            for i, cost in enumerate(results, 1):
+                ingredient_name = cost['ingredient_name']
+                supplier = ""
+                if "（" in ingredient_name and "）" in ingredient_name:
+                    parts = ingredient_name.split("（")
+                    ingredient_name = parts[0]
+                    supplier = f" ({parts[1].replace('）', '')})"
+                
+                response += f"{i}. {ingredient_name}{supplier}\n"
+                response += f"   {cost['capacity']}{cost['unit']} = ¥{cost['unit_price']:.0f}\n\n"
+        
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=response)
+        )
+        
+    except Exception as e:
+        print(f"材料検索エラー: {e}")
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"検索中にエラーが発生しました: {str(e)}")
+        )
 
 
 def handle_add_cost_command(event, text: str):
