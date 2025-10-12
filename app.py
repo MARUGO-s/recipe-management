@@ -1156,8 +1156,8 @@ def handle_search_ingredient(event, search_term: str):
             capacity = cost.get('capacity', 1)
             unit = cost.get('unit', '個')
             
-            # 容量の表示（1の場合は表示しない、整数で表示）
-            if capacity == 1 or capacity == 1.0:
+            # 容量の表示（0または1の場合は表示しない、整数で表示）
+            if capacity == 0 or capacity == 1 or capacity == 1.0:
                 capacity_str = ""
             else:
                 capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
@@ -1168,10 +1168,13 @@ def handle_search_ingredient(event, search_term: str):
             else:
                 unit_display = f"{capacity_str}{unit}"
             
+            # 単価は整数で表示（小数点以下を削除）
+            unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
+            
             response = f"""📋 {ingredient_name}
 
 【単位】{unit_display}
-【単価】¥{cost['unit_price']:.2f}"""
+【単価】¥{unit_price}"""
             
             if supplier_name:
                 response += f"\n【取引先】{supplier_name}"
@@ -1192,8 +1195,8 @@ def handle_search_ingredient(event, search_term: str):
                 capacity = cost.get('capacity', 1)
                 unit = cost.get('unit', '個')
                 
-                # 容量の表示（1の場合は表示しない、整数で表示）
-                if capacity == 1 or capacity == 1.0:
+                # 容量の表示（0または1の場合は表示しない、整数で表示）
+                if capacity == 0 or capacity == 1 or capacity == 1.0:
                     capacity_str = ""
                 else:
                     capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
@@ -1204,8 +1207,11 @@ def handle_search_ingredient(event, search_term: str):
                 else:
                     unit_display = f"{capacity_str}{unit}"
                 
+                # 単価は整数で表示
+                unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
+                
                 response += f"{i}. {ingredient_name}{supplier_str}\n"
-                response += f"   {unit_display} = ¥{cost['unit_price']:.0f}\n\n"
+                response += f"   {unit_display} = ¥{unit_price}\n\n"
         
         line_bot_api.reply_message(ReplyMessageRequest(
             reply_token=event.reply_token,
@@ -1429,8 +1435,8 @@ def handle_list_cost_command(event):
             capacity = cost.get('capacity', 1)
             unit = cost.get('unit', '個')
             
-            # 容量の表示（1の場合は表示しない、整数で表示）
-            if capacity == 1 or capacity == 1.0:
+            # 容量の表示（0または1の場合は表示しない、整数で表示）
+            if capacity == 0 or capacity == 1 or capacity == 1.0:
                 capacity_str = ""
             else:
                 capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
@@ -1441,8 +1447,11 @@ def handle_list_cost_command(event):
             else:
                 unit_display = f"{capacity_str}{unit}"
             
+            # 単価は整数で表示
+            unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
+            
             response += f"{i}. {cost['ingredient_name']}\n"
-            response += f"   {unit_display} = ¥{cost['unit_price']:.0f}\n"
+            response += f"   {unit_display} = ¥{unit_price}\n"
             
             if i >= 20:  # LINEメッセージの長さ制限対策
                 response += f"\n... 他{len(costs) - 20}件"
