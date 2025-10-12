@@ -4,7 +4,10 @@ LINE → Azure Vision → Groq → Supabase → LINE の一連のフロー
 """
 import os
 import requests
-from flask import Flask, request, abort
+import csv
+import io
+from datetime import datetime
+from flask import Flask, request, abort, render_template, jsonify, send_file
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
@@ -48,6 +51,249 @@ except Exception as e:
     except Exception as e2:
         print(f"DBからの原価表読み込みもエラー: {e2}")
 
+
+@app.route("/", methods=['GET'])
+def admin_index():
+    """管理画面のトップページ"""
+    return render_template('index.html')
+
+@app.route("/admin/upload", methods=['POST'])
+def admin_upload():
+    """原価表CSVファイルのアップロード"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "ファイルが選択されていません"}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "ファイルが選択されていません"}), 400
+        
+        if not file.filename.lower().endswith('.csv'):
+            return jsonify({"error": "CSVファイルのみアップロード可能です"}), 400
+        
+        # CSVファイルの読み込みとデータベースへの保存
+        csv_data = file.read().decode('utf-8')
+        csv_reader = csv.DictReader(io.StringIO(csv_data))
+        
+        count = 0
+        for row in csv_reader:
+            try:
+                # データの検証と変換
+                if not row.get('ingredient_name') or not row.get('unit_price'):
+                    continue
+                
+                # Supabaseにデータを挿入
+                result = supabase.table('cost_master').upsert({
+                    'ingredient_name': row['ingredient_name'].strip(),
+                    'unit_price': float(row['unit_price']),
+                    'reference_unit': row.get('reference_unit', '個').strip(),
+                    'reference_quantity': float(row.get('reference_quantity', 1)),
+                    'updated_at': datetime.now().isoformat()
+                }).execute()
+                
+                count += 1
+            except Exception as e:
+                print(f"データ挿入エラー: {e}")
+                continue
+        
+        return jsonify({"success": True, "count": count})
+    
+    except Exception as e:
+        print(f"アップロードエラー: {e}")
+        return jsonify({"error": "アップロードに失敗しました"}), 500
+
+@app.route("/admin/template", methods=['GET'])
+def admin_template():
+    """CSVテンプレートのダウンロード"""
+    try:
+        template_type = request.args.get('type', 'basic')
+        
+        # テンプレートデータの準備
+        if template_type == 'basic':
+            sample_data = [
+                {
+                    'ingredient_name': 'トマト',
+                    'unit_price': 100,
+                    'reference_unit': '個',
+                    'reference_quantity': 1
+                },
+                {
+                    'ingredient_name': '玉ねぎ',
+                    'unit_price': 80,
+                    'reference_unit': '個',
+                    'reference_quantity': 1
+                },
+                {
+                    'ingredient_name': '豚バラ肉',
+                    'unit_price': 300,
+                    'reference_unit': '100g',
+                    'reference_quantity': 100
+                }
+            ]
+        else:  # advanced
+            sample_data = [
+                {
+                    'ingredient_name': 'トマト',
+                    'unit_price': 100,
+                    'reference_unit': '個',
+                    'reference_quantity': 1,
+                    'category': '野菜',
+                    'notes': '中玉トマト'
+                },
+                {
+                    'ingredient_name': '玉ねぎ',
+                    'unit_price': 80,
+                    'reference_unit': '個',
+                    'reference_quantity': 1,
+                    'category': '野菜',
+                    'notes': '中サイズ'
+                },
+                {
+                    'ingredient_name': '豚バラ肉',
+                    'unit_price': 300,
+                    'reference_unit': '100g',
+                    'reference_quantity': 100,
+                    'category': '肉類',
+                    'notes': '国産'
+                },
+                {
+                    'ingredient_name': '米',
+                    'unit_price': 200,
+                    'reference_unit': '1kg',
+                    'reference_quantity': 1000,
+                    'category': '主食',
+                    'notes': '新潟産コシヒカリ'
+                }
+            ]
+        
+        # CSVファイルの生成
+        output = io.StringIO()
+        if sample_data:
+            fieldnames = sample_data[0].keys()
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(sample_data)
+        
+        csv_content = output.getvalue()
+        output.close()
+        
+        # ファイルとして返す
+        return send_file(
+            io.BytesIO(csv_content.encode('utf-8')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'cost_master_template_{template_type}.csv'
+        )
+    
+    except Exception as e:
+        print(f"テンプレート生成エラー: {e}")
+        return jsonify({"error": "テンプレートの生成に失敗しました"}), 500
+
+@app.route("/admin/stats", methods=['GET'])
+def admin_stats():
+    """データベース統計情報の取得"""
+    try:
+        # 原価マスターの件数
+        cost_master_result = supabase.table('cost_master').select('*').execute()
+        ingredients_count = len(cost_master_result.data) if cost_master_result.data else 0
+        
+        # レシピの件数
+        recipes_result = supabase.table('recipes').select('*').execute()
+        recipes_count = len(recipes_result.data) if recipes_result.data else 0
+        
+        # 最終更新日時
+        last_update = None
+        if cost_master_result.data:
+            # 最新のupdated_atを取得
+            latest = max(cost_master_result.data, key=lambda x: x.get('updated_at', ''))
+            last_update = latest.get('updated_at', '').split('T')[0] if latest.get('updated_at') else None
+        
+        return jsonify({
+            "ingredients": ingredients_count,
+            "recipes": recipes_count,
+            "last_update": last_update
+        })
+    
+    except Exception as e:
+        print(f"統計取得エラー: {e}")
+        return jsonify({"error": "統計情報の取得に失敗しました"}), 500
+
+@app.route("/admin/data", methods=['GET'])
+def admin_data():
+    """データベース内容の取得"""
+    try:
+        # 原価マスターの取得
+        cost_master_result = supabase.table('cost_master').select('*').order('ingredient_name').execute()
+        
+        # レシピの取得
+        recipes_result = supabase.table('recipes').select('*').order('created_at', desc=True).limit(20).execute()
+        
+        return jsonify({
+            "cost_master": cost_master_result.data if cost_master_result.data else [],
+            "recipes": recipes_result.data if recipes_result.data else []
+        })
+    
+    except Exception as e:
+        print(f"データ取得エラー: {e}")
+        return jsonify({"error": "データの取得に失敗しました"}), 500
+
+@app.route("/admin/export", methods=['GET'])
+def admin_export():
+    """データベース内容のエクスポート"""
+    try:
+        # 原価マスターの取得
+        result = supabase.table('cost_master').select('*').order('ingredient_name').execute()
+        
+        if not result.data:
+            return jsonify({"error": "エクスポートするデータがありません"}), 404
+        
+        # CSVファイルの生成
+        output = io.StringIO()
+        fieldnames = ['ingredient_name', 'unit_price', 'reference_unit', 'reference_quantity']
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        
+        for row in result.data:
+            writer.writerow({
+                'ingredient_name': row.get('ingredient_name', ''),
+                'unit_price': row.get('unit_price', 0),
+                'reference_unit': row.get('reference_unit', ''),
+                'reference_quantity': row.get('reference_quantity', 1)
+            })
+        
+        csv_content = output.getvalue()
+        output.close()
+        
+        # ファイルとして返す
+        return send_file(
+            io.BytesIO(csv_content.encode('utf-8')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'cost_master_export_{datetime.now().strftime("%Y%m%d")}.csv'
+        )
+    
+    except Exception as e:
+        print(f"エクスポートエラー: {e}")
+        return jsonify({"error": "エクスポートに失敗しました"}), 500
+
+@app.route("/admin/clear", methods=['POST'])
+def admin_clear():
+    """データベース内容のクリア"""
+    try:
+        # 原価マスターのクリア
+        supabase.table('cost_master').delete().neq('ingredient_name', '').execute()
+        
+        # レシピのクリア
+        supabase.table('recipes').delete().neq('dish_name', '').execute()
+        
+        # 材料のクリア
+        supabase.table('ingredients').delete().neq('ingredient_name', '').execute()
+        
+        return jsonify({"success": True, "message": "データベースをクリアしました"})
+    
+    except Exception as e:
+        print(f"クリアエラー: {e}")
+        return jsonify({"error": "データのクリアに失敗しました"}), 500
 
 @app.route("/health", methods=['GET'])
 def health_check():
