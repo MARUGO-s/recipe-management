@@ -11,6 +11,7 @@ from datetime import datetime
 from flask import Flask, request, abort, render_template, jsonify, send_file
 from linebot.v3.webhook import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
@@ -699,7 +700,7 @@ def callback():
     return 'OK'
 
 
-@handler.add(MessageEvent, message=ImageMessage)
+@handler.add(MessageEvent, message=ImageMessageContent)
 
 
 def handle_image_message(event):
@@ -993,7 +994,7 @@ def handle_image_message(event):
         ))
 
 
-@handler.add(MessageEvent, message=TextMessage)
+@handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event):
     """テキストメッセージの処理"""
     text = event.message.text.strip()
