@@ -19,7 +19,9 @@ from linebot.v3.messaging import (
     MessagingApiBlob,
     ReplyMessageRequest,
     PushMessageRequest,
-    TextMessage
+    TextMessage,
+    FlexMessage,
+    FlexContainer
 )
 
 # LINE UI機能は一時的に無効化（安定性を優先）
@@ -1257,6 +1259,101 @@ def handle_text_message(event):
         print(f"⚠️ 材料検索スキップ: '{text}' (長さ: {len(text)})")
 
 
+def create_ingredient_flex_message(cost, is_single=True):
+    """材料情報のFlex Messageを作成"""
+    try:
+        # データを取得
+        ingredient_name = cost['ingredient_name']
+        capacity = cost.get('capacity', 1.0)
+        unit = cost.get('unit', '個')
+        unit_column = cost.get('unit_column', '')
+        spec = cost.get('spec', '')
+        unit_price = cost.get('unit_price', 0)
+        supplier_name = cost.get('suppliers', {}).get('name', '') if cost.get('suppliers') else ''
+        
+        # 容量表示の調整
+        if capacity == 0 or capacity == 1 or capacity == 1.0:
+            capacity_str = ""
+        else:
+            capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
+        
+        # 単位表示
+        if unit_column is not None:
+            unit_display = unit_column if unit_column else "個"
+        else:
+            unit_display = unit
+        
+        # 単価表示
+        unit_price = int(unit_price) if unit_price == int(unit_price) else unit_price
+        
+        # コンテンツを構築
+        contents = []
+        
+        # 材料名
+        contents.append({
+            "type": "text",
+            "text": ingredient_name,
+            "weight": "bold",
+            "size": "lg",
+            "color": "#1DB446"
+        })
+        
+        # 詳細情報
+        details = []
+        if capacity_str:
+            details.append(f"容量: {capacity_str}")
+        details.append(f"単位: {unit_display}")
+        details.append(f"単価: ¥{unit_price}")
+        
+        if supplier_name:
+            details.append(f"取引先: {supplier_name}")
+        
+        if spec:
+            details.append(f"規格: {spec}")
+        
+        contents.append({
+            "type": "text",
+            "text": "\n".join(details),
+            "size": "sm",
+            "color": "#666666",
+            "wrap": True
+        })
+        
+        # フッター（修正ボタン）
+        footer_contents = [{
+            "type": "button",
+            "style": "primary",
+            "height": "sm",
+            "action": {
+                "type": "postback",
+                "label": "修正",
+                "data": f"edit_ingredient={cost['id']}"
+            }
+        }]
+        
+        # Flex Messageを構築
+        flex_container = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": contents,
+                "paddingAll": "16px"
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": footer_contents,
+                "paddingAll": "8px"
+            }
+        }
+        
+        return flex_container
+        
+    except Exception as e:
+        print(f"Flex Message作成エラー: {e}")
+        return None
+
 def handle_search_ingredient(event, search_term: str):
     """
     材料名検索の処理
@@ -1299,55 +1396,28 @@ def handle_search_ingredient(event, search_term: str):
             ))
             return
         
-        # 結果をフォーマット
+        # 結果をFlex Messageで送信
         if len(results) == 1:
             # 完全一致または1件のみの場合
             cost = results[0]
-            ingredient_name = cost['ingredient_name']
-            supplier_name = cost.get('suppliers', {}).get('name') if cost.get('suppliers') else None
             
-            # 単位情報の表示
-            unit_column = cost.get('unit_column')  # Noneの可能性も考慮
-            capacity = cost.get('capacity', 1)
-            unit = cost.get('unit', '個')
+            # Flex Messageを作成
+            flex_container = create_ingredient_flex_message(cost, is_single=True)
             
-            # 容量の表示（0または1の場合は表示しない、整数で表示）
-            if capacity == 0 or capacity == 1 or capacity == 1.0:
-                capacity_str = ""
+            if flex_container:
+                line_bot_api.reply_message(ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[FlexMessage(
+                        alt_text=f"「{search_term}」の検索結果",
+                        contents=FlexContainer.from_dict(flex_container)
+                    )]
+                ))
             else:
-                capacity_str = str(int(capacity)) if capacity == int(capacity) else str(capacity)
-            
-            # 単位列を優先表示（unit_columnが存在する場合は必ずそれを使う）
-            # unit_columnがNoneでない場合は、空文字列でもそれを尊重する
-            if unit_column is not None:
-                unit_display = unit_column if unit_column else "個"  # 単位のみ表示
-            else:
-                unit_display = unit  # 単位のみ表示
-            
-            # 単価は整数で表示（小数点以下を削除）
-            unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
-            
-            # 容量表示の調整（1または空の場合は容量を表示しない）
-            capacity_display = f"【容量】{capacity_str}" if capacity_str else ""
-            
-            response = f"""📋 {ingredient_name}
-{capacity_display}
-【単位】{unit_display}
-【単価】¥{unit_price}"""
-            
-            # 規格がある場合は表示
-            if cost.get('spec'):
-                response += f"\n【規格】{cost['spec']}"
-            
-            if supplier_name:
-                response += f"\n【取引先】{supplier_name}"
-            
-            if cost.get('updated_at'):
-                response += f"\n【更新日】{cost['updated_at'][:10]}"
-            
-            # フォームURLを追加
-            form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?id={cost['id']}"
-            response += f"\n\n📝 修正: {form_url}"
+                # Flex Message作成に失敗した場合はテキストで返信
+                line_bot_api.reply_message(ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=f"「{search_term}」の検索結果を取得しましたが、表示に失敗しました。")]
+                ))
         else:
             # 複数候補がある場合
             response = f"🔍 「{search_term}」の検索結果（{len(results)}件）\n\n"
@@ -1846,12 +1916,63 @@ def send_confirmation(event, ingredient_name, price):
 
 @handler.add(PostbackEvent)
 def handle_postback_event(event):
-    """Postbackイベントを処理（UI機能無効化中）"""
-    reply_text = "UI機能は現在利用できません。テキスト形式で操作してください。"
-    line_bot_api.reply_message(ReplyMessageRequest(
-        reply_token=event.reply_token,
-        messages=[TextMessage(text=reply_text)]
-    ))
+    """Postbackイベントの処理（材料修正用）"""
+    try:
+        print(f"📱 Postbackイベント受信: {event.postback.data}")
+        
+        data = event.postback.data
+        
+        # 材料修正の場合
+        if data.startswith("edit_ingredient="):
+            ingredient_id = data.split("=")[1]
+            print(f"🔧 材料修正モード: ID={ingredient_id}")
+            
+            # 材料データを取得
+            response = supabase.table('cost_master').select('*').eq('id', ingredient_id).execute()
+            
+            if response.data:
+                cost = response.data[0]
+                
+                # 修正用のテキストメッセージを作成
+                ingredient_name = cost['ingredient_name']
+                capacity = cost.get('capacity', 1.0)
+                unit = cost.get('unit', '個')
+                unit_price = cost.get('unit_price', 0)
+                spec = cost.get('spec', '')
+                
+                reply_text = f"""📝 材料修正: {ingredient_name}
+
+現在の設定：
+・容量: {capacity}
+・単位: {unit}
+・単価: ¥{unit_price}
+・規格: {spec if spec else 'なし'}
+
+修正するには以下の形式で入力してください：
+「修正 {ingredient_name} 新しい単価円/新しい単位」
+
+例: 「修正 {ingredient_name} 200円/kg」"""
+                
+                line_bot_api.reply_message(ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=reply_text)]
+                ))
+            else:
+                line_bot_api.reply_message(ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="材料が見つかりませんでした。")]
+                ))
+        else:
+            # その他のPostbackイベント
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="未対応の操作です。")]
+            ))
+        
+    except Exception as e:
+        print(f"❌ Postbackイベント処理エラー: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
