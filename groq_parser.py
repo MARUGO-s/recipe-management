@@ -162,6 +162,47 @@ class GroqRecipeParser:
         
         return True
 
+    def extract_search_term(self, text: str) -> Optional[str]:
+        """ユーザーの自由入力テキストから、検索対象の材料名を抽出する"""
+        try:
+            prompt = f"""ユーザーからの「{text}」というメッセージの中心となっている食材名、または材料名だけを抽出してください。
+もし、メッセージが単なる挨拶や、特定の食材名を含まない無関係な内容の場合は「None」とだけ出力してください。
+
+例1: 「玉ねぎの値段を教えて」 -> 玉ねぎ
+例2: 「豚バラ肉 100g」 -> 豚バラ肉
+例3: 「マグレカナールの原価は？」 -> マグレカナール
+例4: 「こんにちは」 -> None
+例5: 「ありがとう」 -> None
+
+重要な注意: 材料名のみを出力し、余計な文字は一切含めないでください。"""
+
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "あなたはユーザーのメッセージから検索キーワードとなる食材名だけを正確に抽出する専門家です。"
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                model=self.model,
+                temperature=0.0,
+                max_tokens=50
+            )
+            
+            response_text = chat_completion.choices[0].message.content.strip()
+            
+            if response_text.lower() == 'none':
+                return None
+            
+            return response_text
+
+        except Exception as e:
+            print(f"検索キーワードの抽出エラー: {e}")
+            return None
+
     def translate_text(self, text: str, target_language: str = "日本語") -> Optional[str]:
         """テキストをターゲット言語に翻訳する"""
         try:

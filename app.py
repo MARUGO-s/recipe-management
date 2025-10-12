@@ -1062,8 +1062,10 @@ def handle_text_message(event):
         return
     
     # 材料名検索（その他のテキスト）
-    # コマンド以外のテキストは材料名として検索
-    handle_search_ingredient(event, text)
+    # コマンド以外のテキストは、LLMで検索キーワードを抽出してから検索
+    search_term = groq_parser.extract_search_term(text)
+    if search_term:
+        handle_search_ingredient(event, search_term)
 
 
 def handle_search_ingredient(event, search_term: str):
