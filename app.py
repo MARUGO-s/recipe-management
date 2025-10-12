@@ -109,8 +109,8 @@ def extract_capacity_from_spec(spec_text, product_name="", unit_column=""):
         match = re.search(pattern, spec_cleaned, re.IGNORECASE)
         if match:
             capacity, unit = converter(match)
-            # unit_columnはそのまま返す（変換しない）
-            return (capacity, unit, unit_column.strip() if unit_column else "")
+            # unit_columnは絶対に変換せず、そのまま返す
+            return (capacity, unit, unit_column)
     
     # 商品名から容量を抽出（規格で見つからない場合）
     if product_name:
@@ -118,14 +118,14 @@ def extract_capacity_from_spec(spec_text, product_name="", unit_column=""):
             match = re.search(pattern, product_name, re.IGNORECASE)
             if match:
                 capacity, unit = converter(match)
-                # unit_columnはそのまま返す（変換しない）
-                return (capacity, unit, unit_column.strip() if unit_column else "")
+                # unit_columnは絶対に変換せず、そのまま返す
+                return (capacity, unit, unit_column)
     
     # デフォルト値
     # 規格や商品名から容量が抽出できない場合
     # - unit: 容量の単位として'個'を使用
-    # - unit_column: CSVの単位列をそのまま保持（変換しない）
-    return (1, '個', unit_column.strip() if unit_column else "")
+    # - unit_column: CSVの単位列を絶対にそのまま保持（変換しない）
+    return (1, '個', unit_column)
 
 
 def get_user_state(user_id):
