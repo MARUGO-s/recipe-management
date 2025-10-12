@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const uploadProgress = document.getElementById('uploadProgress');
     const uploadStatus = document.getElementById('uploadStatus');
     const downloadBtn = document.getElementById('downloadBtn');
+    const downloadTransactionBtn = document.getElementById('downloadTransactionBtn');
     const refreshBtn = document.getElementById('refreshBtn');
     const viewDataBtn = document.getElementById('viewDataBtn');
     const exportDataBtn = document.getElementById('exportDataBtn');
@@ -24,6 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ボタンイベント
     uploadBtn.addEventListener('click', uploadFile);
     downloadBtn.addEventListener('click', downloadTemplate);
+    downloadTransactionBtn.addEventListener('click', downloadTransactionTemplate);
     refreshBtn.addEventListener('click', refreshDatabaseStats);
     viewDataBtn.addEventListener('click', viewDatabaseData);
     exportDataBtn.addEventListener('click', exportDatabaseData);
@@ -94,15 +96,24 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // アップロードタイプを取得
+        const uploadType = document.querySelector('input[name="uploadType"]:checked').value;
+        const endpoint = uploadType === 'transaction' ? '/admin/upload-transaction' : '/admin/upload';
+
         const formData = new FormData();
         formData.append('file', selectedFile);
 
         try {
             uploadBtn.disabled = true;
             uploadProgress.style.display = 'block';
-            showStatus('info', 'ファイルをアップロード中...');
+            
+            if (uploadType === 'transaction') {
+                showStatus('info', '取引データを解析・抽出中...');
+            } else {
+                showStatus('info', 'ファイルをアップロード中...');
+            }
 
-            const response = await fetch('/admin/upload', {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 body: formData
             });
@@ -110,7 +121,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await response.json();
 
             if (response.ok) {
-                showStatus('success', `アップロード完了！${result.count}件のデータが登録されました。`);
+                if (uploadType === 'transaction') {
+                    showStatus('success', `取引データ処理完了！\n処理: ${result.processed}件\n抽出: ${result.extracted}件\n保存: ${result.saved}件`);
+                } else {
+                    showStatus('success', `アップロード完了！${result.count}件のデータが登録されました。`);
+                }
                 resetUploadArea();
                 refreshDatabaseStats();
             } else {
@@ -146,6 +161,28 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 showStatus('error', 'テンプレートのダウンロードに失敗しました。');
                 console.error('Download error:', error);
+            });
+    }
+
+    // 取引データテンプレートダウンロード
+    function downloadTransactionTemplate() {
+        fetch('/admin/template-transaction')
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'transaction_template.csv';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showStatus('success', '取引データテンプレートをダウンロードしました。');
+            })
+            .catch(error => {
+                showStatus('error', '取引データテンプレートのダウンロードに失敗しました。');
+                console.error('Transaction template download error:', error);
             });
     }
 

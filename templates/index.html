@@ -124,10 +124,26 @@
                                         <div class="feature-icon bg-primary">
                                             <i class="fas fa-upload"></i>
                                         </div>
-                                        <h4 class="card-title fw-bold text-primary">原価表アップロード</h4>
+                                        <h4 class="card-title fw-bold text-primary">ファイルアップロード</h4>
                                         <p class="card-text text-muted">
                                             CSVファイルをアップロードして原価表を更新できます
                                         </p>
+                                        
+                                        <!-- Upload Type Selection -->
+                                        <div class="mb-3">
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="uploadType" id="costMasterUpload" value="cost_master" checked>
+                                                <label class="form-check-label" for="costMasterUpload">
+                                                    原価表CSV
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="uploadType" id="transactionUpload" value="transaction">
+                                                <label class="form-check-label" for="transactionUpload">
+                                                    取引データCSV
+                                                </label>
+                                            </div>
+                                        </div>
                                         
                                         <!-- Upload Area -->
                                         <div class="upload-area mb-3" id="uploadArea">
@@ -185,13 +201,19 @@
                                         <button class="btn btn-success-custom btn-custom text-white" id="downloadBtn">
                                             <i class="fas fa-download me-2"></i>テンプレートダウンロード
                                         </button>
+                                        
+                                        <!-- Transaction Template Button -->
+                                        <button class="btn btn-outline-success btn-custom mt-2" id="downloadTransactionBtn">
+                                            <i class="fas fa-file-csv me-2"></i>取引データテンプレート
+                                        </button>
 
                                         <!-- Sample Data -->
                                         <div class="mt-3">
                                             <small class="text-muted">
                                                 <i class="fas fa-info-circle me-1"></i>
                                                 サンプルデータ付きでダウンロードされます<br>
-                                                <strong>新形式:</strong> 材料名, 容量, 単位, 単価
+                                                <strong>原価表:</strong> 材料名, 容量, 単位, 単価<br>
+                                                <strong>取引データ:</strong> 取引先名, 商品名, 単価, 単位を自動抽出
                                             </small>
                                         </div>
                                     </div>

@@ -102,6 +102,168 @@ def admin_upload():
         print(f"アップロードエラー: {e}")
         return jsonify({"error": "アップロードに失敗しました"}), 500
 
+@app.route("/admin/upload-transaction", methods=['POST'])
+def admin_upload_transaction():
+    """取引データCSVファイルのアップロード（材料情報抽出）"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "ファイルが選択されていません"}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "ファイルが選択されていません"}), 400
+        
+        if not file.filename.lower().endswith('.csv'):
+            return jsonify({"error": "CSVファイルのみアップロード可能です"}), 400
+        
+        # CSVファイルの読み込み
+        csv_data = file.read().decode('utf-8')
+        csv_reader = csv.DictReader(io.StringIO(csv_data))
+        
+        # 列マッピング（デフォルト）
+        column_mapping = {
+            'supplier': '取引先名',
+            'product': '商品名', 
+            'price': '単価',
+            'unit': '単位'
+        }
+        
+        # 実際の列名を検出
+        if csv_reader.fieldnames:
+            detected_columns = {}
+            for key, expected_name in column_mapping.items():
+                for field in csv_reader.fieldnames:
+                    if expected_name in field:
+                        detected_columns[key] = field
+                        break
+            
+            # 列が見つからない場合はフィールド名から推測
+            if not detected_columns.get('supplier'):
+                for field in csv_reader.fieldnames:
+                    if '取引先' in field or '仕入先' in field:
+                        detected_columns['supplier'] = field
+                        break
+            
+            if not detected_columns.get('product'):
+                for field in csv_reader.fieldnames:
+                    if '商品名' in field or '品名' in field:
+                        detected_columns['product'] = field
+                        break
+                        
+            if not detected_columns.get('price'):
+                for field in csv_reader.fieldnames:
+                    if '単価' in field or '価格' in field:
+                        detected_columns['price'] = field
+                        break
+                        
+            if not detected_columns.get('unit'):
+                for field in csv_reader.fieldnames:
+                    if '単位' in field:
+                        detected_columns['unit'] = field
+                        break
+            
+            column_mapping = detected_columns
+        
+        # データの抽出と変換
+        extracted_materials = {}
+        count = 0
+        
+        for row in csv_reader:
+            try:
+                # 必要な列が存在するかチェック
+                if not all(key in column_mapping and column_mapping[key] in row for key in ['supplier', 'product', 'price']):
+                    continue
+                
+                supplier = row[column_mapping['supplier']].strip()
+                product = row[column_mapping['product']].strip()
+                price_str = row[column_mapping['price']].strip()
+                unit = row.get(column_mapping.get('unit', ''), '').strip() if column_mapping.get('unit') else '個'
+                
+                if not product or not price_str:
+                    continue
+                
+                # 単価を数値に変換
+                try:
+                    price = float(price_str.replace(',', ''))
+                except ValueError:
+                    continue
+                
+                # 材料名の正規化（取引先名を含める場合）
+                material_name = f"{product}"
+                if supplier and supplier != product:
+                    material_name = f"{product}（{supplier}）"
+                
+                # 容量の推定（単位から）
+                capacity = 1
+                if unit:
+                    if 'kg' in unit:
+                        capacity = 1000
+                        unit = 'g'
+                    elif 'g' in unit:
+                        capacity = 1
+                    elif 'L' in unit or 'l' in unit:
+                        capacity = 1000
+                        unit = 'ml'
+                    elif 'ml' in unit:
+                        capacity = 1
+                    elif '個' in unit or '本' in unit or '枚' in unit:
+                        capacity = 1
+                        unit = '個'
+                
+                # 重複チェック
+                if material_name in extracted_materials:
+                    # より安い価格で更新
+                    if price < extracted_materials[material_name]['price']:
+                        extracted_materials[material_name] = {
+                            'name': material_name,
+                            'capacity': capacity,
+                            'unit': unit,
+                            'price': price,
+                            'supplier': supplier
+                        }
+                else:
+                    extracted_materials[material_name] = {
+                        'name': material_name,
+                        'capacity': capacity,
+                        'unit': unit,
+                        'price': price,
+                        'supplier': supplier
+                    }
+                
+                count += 1
+                
+            except Exception as e:
+                print(f"行処理エラー: {e}")
+                continue
+        
+        # データベースに保存
+        saved_count = 0
+        for material_data in extracted_materials.values():
+            try:
+                result = supabase.table('cost_master').upsert({
+                    'ingredient_name': material_data['name'],
+                    'capacity': material_data['capacity'],
+                    'unit': material_data['unit'],
+                    'unit_price': material_data['price'],
+                    'updated_at': datetime.now().isoformat()
+                }).execute()
+                saved_count += 1
+            except Exception as e:
+                print(f"保存エラー: {e}")
+                continue
+        
+        return jsonify({
+            "success": True, 
+            "processed": count,
+            "extracted": len(extracted_materials),
+            "saved": saved_count,
+            "column_mapping": column_mapping
+        })
+    
+    except Exception as e:
+        print(f"取引データアップロードエラー: {e}")
+        return jsonify({"error": "取引データのアップロードに失敗しました"}), 500
+
 @app.route("/admin/template", methods=['GET'])
 def admin_template():
     """CSVテンプレートのダウンロード"""
@@ -188,6 +350,125 @@ def admin_template():
     except Exception as e:
         print(f"テンプレート生成エラー: {e}")
         return jsonify({"error": "テンプレートの生成に失敗しました"}), 500
+
+@app.route("/admin/template-transaction", methods=['GET'])
+def admin_template_transaction():
+    """取引データCSVテンプレートのダウンロード"""
+    try:
+        # 取引データテンプレート
+        sample_data = [
+            {
+                'データ区分': '仕入',
+                '伝票日付': '2025/10/12',
+                '伝票No': 'S20251012001',
+                '取引状態': '完了',
+                '自社コード': '001',
+                '自社会員名': 'テスト株式会社',
+                '自社担当者': '田中太郎',
+                '取引先コード': 'S001',
+                '取引先名': 'ABC食品',
+                '納品場所コード': '001',
+                '納品場所名': '本社',
+                '納品場所 住所': '東京都渋谷区',
+                'マイカタログID': '',
+                '自社管理商品コード': 'ITEM001',
+                '商品名': 'トマト',
+                '規格': '中玉',
+                '入数': '1',
+                '入数単位': '個',
+                '単価': '100',
+                '数量': '10',
+                '単位': '個',
+                '金額': '1000',
+                '消費税': '100',
+                '小計': '1100',
+                '課税区分': '課税',
+                '税区分': '10%',
+                '合計 商品本体': '1000',
+                '合計 商品消費税': '100',
+                '合計 送料本体': '0',
+                '合計 送料消費税': '0',
+                '合計 その他': '0',
+                '総合計': '1100',
+                '発注日': '2025/10/10',
+                '発送日': '2025/10/11',
+                '納品日': '2025/10/12',
+                '受領日': '2025/10/12',
+                '取引ID_SYSTEM': 'TXN001',
+                '伝票明細ID_SYSTEM': 'DETAIL001',
+                '発注送信日': '2025/10/10',
+                '発注送信時間': '09:00',
+                '送信日': '2025/10/11',
+                '送信時間': '14:00'
+            },
+            {
+                'データ区分': '仕入',
+                '伝票日付': '2025/10/12',
+                '伝票No': 'S20251012002',
+                '取引状態': '完了',
+                '自社コード': '001',
+                '自社会員名': 'テスト株式会社',
+                '自社担当者': '田中太郎',
+                '取引先コード': 'S002',
+                '取引先名': 'XYZ肉店',
+                '納品場所コード': '001',
+                '納品場所名': '本社',
+                '納品場所 住所': '東京都渋谷区',
+                'マイカタログID': '',
+                '自社管理商品コード': 'ITEM002',
+                '商品名': '豚バラ肉',
+                '規格': '国産',
+                '入数': '1',
+                '入数単位': '100g',
+                '単価': '300',
+                '数量': '5',
+                '単位': '100g',
+                '金額': '1500',
+                '消費税': '150',
+                '小計': '1650',
+                '課税区分': '課税',
+                '税区分': '10%',
+                '合計 商品本体': '1500',
+                '合計 商品消費税': '150',
+                '合計 送料本体': '0',
+                '合計 送料消費税': '0',
+                '合計 その他': '0',
+                '総合計': '1650',
+                '発注日': '2025/10/10',
+                '発送日': '2025/10/11',
+                '納品日': '2025/10/12',
+                '受領日': '2025/10/12',
+                '取引ID_SYSTEM': 'TXN002',
+                '伝票明細ID_SYSTEM': 'DETAIL002',
+                '発注送信日': '2025/10/10',
+                '発注送信時間': '09:30',
+                '送信日': '2025/10/11',
+                '送信時間': '14:30'
+            }
+        ]
+        
+        # CSVファイルの生成
+        output = io.StringIO()
+        if sample_data:
+            fieldnames = sample_data[0].keys()
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(sample_data)
+        
+        csv_content = output.getvalue()
+        output.close()
+        
+        # ファイルとして返す
+        return send_file(
+            io.BytesIO(csv_content.encode('utf-8')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name='transaction_template.csv'
+        )
+    
+    except Exception as e:
+        print(f"取引データテンプレート生成エラー: {e}")
+        return jsonify({"error": "取引データテンプレートの生成に失敗しました"}), 500
 
 @app.route("/admin/stats", methods=['GET'])
 def admin_stats():
