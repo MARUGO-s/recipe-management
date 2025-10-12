@@ -156,7 +156,7 @@ class CostMasterManager:
         return True
     
     def add_or_update_cost(self, ingredient_name: str, capacity: float, 
-                           unit: str, unit_price: float) -> bool:
+                           unit: str, unit_price: float, unit_column: str = "") -> bool:
         """
         原価表に材料を追加または更新
         """
@@ -175,6 +175,7 @@ class CostMasterManager:
                 'ingredient_name': ingredient_name,
                 'capacity': capacity,
                 'unit': unit,
+                'unit_column': unit_column,
                 'unit_price': unit_price,
                 'updated_at': datetime.now().isoformat()
             }

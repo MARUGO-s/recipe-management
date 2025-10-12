@@ -446,15 +446,24 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                ${data.cost_master?.map(item => `
+                                                ${data.cost_master?.map(item => {
+                                                    // 単位情報の表示（単位列がある場合は追加表示）
+                                                    const unitColumn = item.unit_column || '';
+                                                    let unitDisplay = item.unit || '-';
+                                                    if (unitColumn && unitColumn !== item.unit) {
+                                                        unitDisplay += ` (単位列: ${unitColumn})`;
+                                                    }
+                                                    
+                                                    return `
                                                     <tr>
                                                         <td>${item.ingredient_name || '-'}</td>
                                                         <td>${item.suppliers?.name || '-'}</td>
                                                         <td>${item.capacity || '-'}</td>
-                                                        <td>${item.unit || '-'}</td>
+                                                        <td>${unitDisplay}</td>
                                                         <td>¥${item.unit_price != null ? item.unit_price : 0}</td>
                                                     </tr>
-                                                `).join('') || '<tr><td colspan="5" class="text-center">データなし</td></tr>'}
+                                                    `;
+                                                }).join('') || '<tr><td colspan="5" class="text-center">データなし</td></tr>'}
                                             </tbody>
                                         </table>
                                     </div>

@@ -65,16 +65,17 @@ except Exception as e:
     print(f"原価表の初期読み込みでエラーが発生しました: {e}")
 
 
-def extract_capacity_from_spec(spec_text, product_name=""):
+def extract_capacity_from_spec(spec_text, product_name="", unit_column=""):
     """
-    規格や商品名から容量を抽出する関数
+    規格や商品名、単位列から容量を抽出する関数
     
     Args:
         spec_text: 規格テキスト
         product_name: 商品名
+        unit_column: CSVの単位列の内容
     
     Returns:
-        tuple: (capacity, unit)
+        tuple: (capacity, unit, unit_column)
     """
     if not spec_text:
         spec_text = ""
@@ -104,17 +105,20 @@ def extract_capacity_from_spec(spec_text, product_name=""):
     for pattern, converter in patterns:
         match = re.search(pattern, spec_cleaned, re.IGNORECASE)
         if match:
-            return converter(match)
+            capacity, unit = converter(match)
+            return (capacity, unit, unit_column)
     
     # 商品名から容量を抽出（規格で見つからない場合）
     if product_name:
         for pattern, converter in patterns:
             match = re.search(pattern, product_name, re.IGNORECASE)
             if match:
-                return converter(match)
+                capacity, unit = converter(match)
+                return (capacity, unit, unit_column)
     
-    # デフォルト値
-    return (1, '個')
+    # デフォルト値（単位列があれば使用、なければ'個'）
+    default_unit = unit_column.strip() if unit_column else '個'
+    return (1, default_unit, unit_column)
 
 
 def get_user_state(user_id):
@@ -270,7 +274,8 @@ def admin_upload_transaction():
 
                 supplier = row[8].strip()
                 spec = row[15].strip()
-                capacity, unit = extract_capacity_from_spec(spec, product)
+                unit_column = row[16].strip() if len(row) > 16 else ""  # 単位列（16番目）
+                capacity, unit, unit_column_data = extract_capacity_from_spec(spec, product, unit_column)
                 
                 # (商品名, 取引先名) のタプルをキーに重複排除
                 item_key = (product, supplier)
@@ -280,6 +285,7 @@ def admin_upload_transaction():
                         'supplier': supplier,
                         'capacity': capacity,
                         'unit': unit,
+                        'unit_column': unit_column_data,
                         'price': price
                     }
                 processed_count += 1
@@ -305,6 +311,7 @@ def admin_upload_transaction():
                 'supplier_id': supplier_name_to_id.get(item['supplier']),
                 'capacity': item['capacity'],
                 'unit': item['unit'],
+                'unit_column': item['unit_column'],
                 'unit_price': item['price'],
                 'updated_at': datetime.now().isoformat()
             })
@@ -442,7 +449,7 @@ def admin_template_transaction():
                 '入数単位': '個',
                 '単価': '100',
                 '数量': '10',
-                '単位': '個',
+                '単位': 'g',
                 '金額': '1000',
                 '消費税': '100',
                 '小計': '1100',
@@ -1137,9 +1144,15 @@ def handle_search_ingredient(event, search_term: str):
             ingredient_name = cost['ingredient_name']
             supplier_name = cost.get('suppliers', {}).get('name') if cost.get('suppliers') else None
             
+            # 単位情報の表示
+            unit_column = cost.get('unit_column', '')
+            unit_display = f"{cost['capacity']}{cost['unit']}"
+            if unit_column and unit_column != cost['unit']:
+                unit_display += f" (単位列: {unit_column})"
+            
             response = f"""📋 {ingredient_name}
 
-【容量】{cost['capacity']}{cost['unit']}
+【容量】{unit_display}
 【単価】¥{cost['unit_price']:.2f}"""
             
             if supplier_name:
@@ -1156,8 +1169,14 @@ def handle_search_ingredient(event, search_term: str):
                 supplier_name = cost.get('suppliers', {}).get('name') if cost.get('suppliers') else None
                 supplier_str = f"（{supplier_name}）" if supplier_name else ""
 
+                # 単位情報の表示
+                unit_column = cost.get('unit_column', '')
+                unit_display = f"{cost['capacity']}{cost['unit']}"
+                if unit_column and unit_column != cost['unit']:
+                    unit_display += f" (単位列: {unit_column})"
+                
                 response += f"{i}. {ingredient_name}{supplier_str}\n"
-                response += f"   {cost['capacity']}{cost['unit']} = ¥{cost['unit_price']:.0f}\n\n"
+                response += f"   {unit_display} = ¥{cost['unit_price']:.0f}\n\n"
         
         line_bot_api.reply_message(ReplyMessageRequest(
             reply_token=event.reply_token,
@@ -1223,7 +1242,8 @@ def handle_add_cost_command(event, text: str):
             cost_data['ingredient_name'],
             cost_data['capacity'],
             cost_data['unit'],
-            cost_data['unit_price']
+            cost_data['unit_price'],
+            ""  # unit_columnは空文字列（LINEからの追加では使用しない）
         )
         
         if success:
@@ -1375,8 +1395,14 @@ def handle_list_cost_command(event):
         response = f"📋 原価一覧（{len(costs)}件）\n\n"
         
         for i, cost in enumerate(costs, 1):
+            # 単位情報の表示
+            unit_column = cost.get('unit_column', '')
+            unit_display = f"{cost['capacity']}{cost['unit']}"
+            if unit_column and unit_column != cost['unit']:
+                unit_display += f" (単位列: {unit_column})"
+            
             response += f"{i}. {cost['ingredient_name']}\n"
-            response += f"   {cost['capacity']}{cost['unit']} = ¥{cost['unit_price']:.0f}\n"
+            response += f"   {unit_display} = ¥{cost['unit_price']:.0f}\n"
             
             if i >= 20:  # LINEメッセージの長さ制限対策
                 response += f"\n... 他{len(costs) - 20}件"
