@@ -280,7 +280,7 @@ def admin_upload_transaction():
                 if price <= 0: continue
 
                 supplier = row[8].strip()
-                spec = row[15].strip()
+                spec = row[15].strip()  # 規格（16列目）
                 unit_column = row[20].strip() if len(row) > 20 else ""  # 単位列（21番目、インデックス20）
                 capacity, unit, unit_column_data = extract_capacity_from_spec(spec, product, unit_column)
                 
@@ -293,6 +293,7 @@ def admin_upload_transaction():
                         'capacity': capacity,
                         'unit': unit,
                         'unit_column': unit_column_data,
+                        'spec': spec,  # 規格も保存
                         'price': price
                     }
                 processed_count += 1
@@ -319,6 +320,7 @@ def admin_upload_transaction():
                 'capacity': item['capacity'],
                 'unit': item['unit'],
                 'unit_column': item['unit_column'],
+                'spec': item.get('spec', ''),  # 規格を追加
                 'unit_price': item['price'],
                 'updated_at': datetime.now().isoformat()
             })
@@ -1190,6 +1192,10 @@ def handle_search_ingredient(event, search_term: str):
 【単位】{unit_display}
 【単価】¥{unit_price}"""
             
+            # 規格がある場合は表示
+            if cost.get('spec'):
+                response += f"\n【規格】{cost['spec']}"
+            
             if supplier_name:
                 response += f"\n【取引先】{supplier_name}"
             
@@ -1226,7 +1232,13 @@ def handle_search_ingredient(event, search_term: str):
                 unit_price = int(cost['unit_price']) if cost['unit_price'] == int(cost['unit_price']) else cost['unit_price']
                 
                 response += f"{i}. {ingredient_name}{supplier_str}\n"
-                response += f"   {unit_display} = ¥{unit_price}\n\n"
+                response += f"   {unit_display} = ¥{unit_price}"
+                
+                # 規格がある場合は表示
+                if cost.get('spec'):
+                    response += f"\n   【規格】{cost['spec']}"
+                
+                response += "\n\n"
         
         line_bot_api.reply_message(ReplyMessageRequest(
             reply_token=event.reply_token,

@@ -522,6 +522,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                     <th>取引先</th>
                                                     <th>容量</th>
                                                     <th>単位</th>
+                                                    <th>規格</th>
                                                     <th>単価</th>
                                                 </tr>
                                             </thead>
@@ -556,10 +557,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                                         <td>${item.suppliers?.name || '-'}</td>
                                                         <td>${capacityDisplay}</td>
                                                         <td>${unitDisplay}</td>
+                                                        <td>${item.spec || '-'}</td>
                                                         <td>¥${unitPriceDisplay}</td>
                                                     </tr>
                                                     `;
-                                                }).join('') || '<tr><td colspan="5" class="text-center">データなし</td></tr>'}
+                                                }).join('') || '<tr><td colspan="6" class="text-center">データなし</td></tr>'}
                                             </tbody>
                                         </table>
                                     </div>
