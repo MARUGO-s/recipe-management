@@ -128,12 +128,31 @@ def admin_upload():
         csv_data = file.read().decode('utf-8')
         csv_reader = csv.DictReader(io.StringIO(csv_data))
         
+        # 列名の自動検出
+        fieldnames = csv_reader.fieldnames
+        print(f"CSV columns: {fieldnames}")
+        
+        # 列名マッピング
+        column_mapping = {}
+        for field in fieldnames:
+            field_lower = field.lower().strip()
+            if 'ingredient' in field_lower or '材料' in field_lower or 'name' in field_lower:
+                column_mapping['ingredient_name'] = field
+            elif 'capacity' in field_lower or '容量' in field_lower:
+                column_mapping['capacity'] = field
+            elif 'unit' in field_lower and 'price' not in field_lower or '単位' in field_lower:
+                column_mapping['unit'] = field
+            elif 'price' in field_lower or '単価' in field_lower or 'cost' in field_lower:
+                column_mapping['unit_price'] = field
+        
+        print(f"Column mapping: {column_mapping}")
+        
         count = 0
         for row in csv_reader:
             try:
                 # データの検証と変換
-                ingredient_name = row.get('ingredient_name', '').strip()
-                unit_price = row.get('unit_price', '').strip()
+                ingredient_name = row.get(column_mapping.get('ingredient_name', ''), '').strip()
+                unit_price = row.get(column_mapping.get('unit_price', ''), '').strip()
                 
                 if not ingredient_name or not unit_price:
                     continue
@@ -141,8 +160,8 @@ def admin_upload():
                 # Supabaseにデータを挿入
                 data = {
                     'ingredient_name': ingredient_name,
-                    'capacity': float(row.get('capacity', 1)),
-                    'unit': row.get('unit', '個').strip(),
+                    'capacity': float(row.get(column_mapping.get('capacity', ''), 1)),
+                    'unit': row.get(column_mapping.get('unit', ''), '個').strip(),
                     'unit_price': float(unit_price),
                     'updated_at': datetime.now().isoformat()
                 }
