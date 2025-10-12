@@ -6,6 +6,7 @@ import os
 import requests
 import csv
 import io
+import re
 from datetime import datetime
 from flask import Flask, request, abort, render_template, jsonify, send_file
 from linebot import LineBotApi, WebhookHandler
@@ -50,6 +51,57 @@ except Exception as e:
         cost_calculator._load_cost_master_from_db()
     except Exception as e2:
         print(f"DBからの原価表読み込みもエラー: {e2}")
+
+
+def extract_capacity_from_spec(spec_text, product_name=""):
+    """
+    規格や商品名から容量を抽出する関数
+    
+    Args:
+        spec_text: 規格テキスト
+        product_name: 商品名
+    
+    Returns:
+        tuple: (capacity, unit)
+    """
+    if not spec_text:
+        spec_text = ""
+    
+    # 規格から「×入数」パターンを除去
+    # 「750ml×12」→「750ml」
+    spec_cleaned = re.sub(r'×\d+$', '', spec_text.strip())
+    
+    # 容量パターンマッチング（優先順位順）
+    patterns = [
+        # 重量系
+        (r'(\d+(?:\.\d+)?)\s*kg', lambda m: (float(m.group(1)) * 1000, 'g')),
+        (r'(\d+(?:\.\d+)?)\s*g', lambda m: (float(m.group(1)), 'g')),
+        # 容量系
+        (r'(\d+(?:\.\d+)?)\s*L', lambda m: (float(m.group(1)) * 1000, 'ml')),
+        (r'(\d+(?:\.\d+)?)\s*ml', lambda m: (float(m.group(1)), 'ml')),
+        # 個数系
+        (r'(\d+(?:\.\d+)?)\s*個', lambda m: (float(m.group(1)), '個')),
+        (r'(\d+(?:\.\d+)?)\s*本', lambda m: (float(m.group(1)), '個')),
+        (r'(\d+(?:\.\d+)?)\s*枚', lambda m: (float(m.group(1)), '個')),
+        # パック系
+        (r'(\d+(?:\.\d+)?)\s*p', lambda m: (float(m.group(1)), '個')),
+    ]
+    
+    # 規格から容量を抽出
+    for pattern, converter in patterns:
+        match = re.search(pattern, spec_cleaned, re.IGNORECASE)
+        if match:
+            return converter(match)
+    
+    # 商品名から容量を抽出（規格で見つからない場合）
+    if product_name:
+        for pattern, converter in patterns:
+            match = re.search(pattern, product_name, re.IGNORECASE)
+            if match:
+                return converter(match)
+    
+    # デフォルト値
+    return (1, '個')
 
 
 @app.route("/", methods=['GET'])
@@ -125,7 +177,8 @@ def admin_upload_transaction():
             'supplier': '取引先名',
             'product': '商品名', 
             'price': '単価',
-            'unit': '単位'
+            'unit': '単位',
+            'spec': '規格'
         }
         
         # 実際の列名を検出
@@ -162,6 +215,12 @@ def admin_upload_transaction():
                         detected_columns['unit'] = field
                         break
             
+            if not detected_columns.get('spec'):
+                for field in csv_reader.fieldnames:
+                    if '規格' in field:
+                        detected_columns['spec'] = field
+                        break
+            
             column_mapping = detected_columns
         
         # データの抽出と変換
@@ -178,6 +237,7 @@ def admin_upload_transaction():
                 product = row[column_mapping['product']].strip()
                 price_str = row[column_mapping['price']].strip()
                 unit = row.get(column_mapping.get('unit', ''), '').strip() if column_mapping.get('unit') else '個'
+                spec = row.get(column_mapping.get('spec', ''), '').strip() if column_mapping.get('spec') else ''
                 
                 if not product or not price_str:
                     continue
@@ -193,22 +253,30 @@ def admin_upload_transaction():
                 if supplier and supplier != product:
                     material_name = f"{product}（{supplier}）"
                 
-                # 容量の推定（単位から）
-                capacity = 1
-                if unit:
-                    if 'kg' in unit:
-                        capacity = 1000
-                        unit = 'g'
-                    elif 'g' in unit:
-                        capacity = 1
-                    elif 'L' in unit or 'l' in unit:
-                        capacity = 1000
-                        unit = 'ml'
-                    elif 'ml' in unit:
-                        capacity = 1
-                    elif '個' in unit or '本' in unit or '枚' in unit:
-                        capacity = 1
-                        unit = '個'
+                # 規格と商品名から容量を抽出
+                extracted_capacity, extracted_unit = extract_capacity_from_spec(spec, product)
+                
+                # 抽出できた場合はそれを使用、できなかった場合は単位から推定
+                if extracted_capacity > 1 or extracted_unit != '個':
+                    capacity = extracted_capacity
+                    unit = extracted_unit
+                else:
+                    # 従来の単位からの推定
+                    capacity = 1
+                    if unit:
+                        if 'kg' in unit:
+                            capacity = 1000
+                            unit = 'g'
+                        elif 'g' in unit:
+                            capacity = 1
+                        elif 'L' in unit or 'l' in unit:
+                            capacity = 1000
+                            unit = 'ml'
+                        elif 'ml' in unit:
+                            capacity = 1
+                        elif '個' in unit or '本' in unit or '枚' in unit:
+                            capacity = 1
+                            unit = '個'
                 
                 # 重複チェック
                 if material_name in extracted_materials:
@@ -373,7 +441,7 @@ def admin_template_transaction():
                 'マイカタログID': '',
                 '自社管理商品コード': 'ITEM001',
                 '商品名': 'トマト',
-                '規格': '中玉',
+                '規格': '500g',
                 '入数': '1',
                 '入数単位': '個',
                 '単価': '100',
@@ -417,7 +485,7 @@ def admin_template_transaction():
                 'マイカタログID': '',
                 '自社管理商品コード': 'ITEM002',
                 '商品名': '豚バラ肉',
-                '規格': '国産',
+                '規格': '1kg',
                 '入数': '1',
                 '入数単位': '100g',
                 '単価': '300',
@@ -444,6 +512,50 @@ def admin_template_transaction():
                 '発注送信時間': '09:30',
                 '送信日': '2025/10/11',
                 '送信時間': '14:30'
+            },
+            {
+                'データ区分': '仕入',
+                '伝票日付': '2025/10/12',
+                '伝票No': 'S20251012003',
+                '取引状態': '完了',
+                '自社コード': '001',
+                '自社会員名': 'テスト株式会社',
+                '自社担当者': '田中太郎',
+                '取引先コード': 'S003',
+                '取引先名': 'DEF飲料',
+                '納品場所コード': '001',
+                '納品場所名': '本社',
+                '納品場所 住所': '東京都渋谷区',
+                'マイカタログID': '',
+                '自社管理商品コード': 'ITEM003',
+                '商品名': 'オレンジジュース 750ml×12本',
+                '規格': '750ml×12',
+                '入数': '12',
+                '入数単位': '本',
+                '単価': '150',
+                '数量': '2',
+                '単位': 'ケース',
+                '金額': '300',
+                '消費税': '30',
+                '小計': '330',
+                '課税区分': '課税',
+                '税区分': '10%',
+                '合計 商品本体': '300',
+                '合計 商品消費税': '30',
+                '合計 送料本体': '0',
+                '合計 送料消費税': '0',
+                '合計 その他': '0',
+                '総合計': '330',
+                '発注日': '2025/10/10',
+                '発送日': '2025/10/11',
+                '納品日': '2025/10/12',
+                '受領日': '2025/10/12',
+                '取引ID_SYSTEM': 'TXN003',
+                '伝票明細ID_SYSTEM': 'DETAIL003',
+                '発注送信日': '2025/10/10',
+                '発注送信時間': '10:00',
+                '送信日': '2025/10/11',
+                '送信時間': '15:00'
             }
         ]
         
