@@ -132,18 +132,31 @@ def admin_upload():
         fieldnames = csv_reader.fieldnames
         print(f"CSV columns: {fieldnames}")
         
-        # 列名マッピング
+        # 列名マッピング（テンプレート形式を優先）
         column_mapping = {}
-        for field in fieldnames:
-            field_lower = field.lower().strip()
-            if 'ingredient' in field_lower or '材料' in field_lower or 'name' in field_lower:
-                column_mapping['ingredient_name'] = field
-            elif 'capacity' in field_lower or '容量' in field_lower:
-                column_mapping['capacity'] = field
-            elif 'unit' in field_lower and 'price' not in field_lower or '単位' in field_lower:
-                column_mapping['unit'] = field
-            elif 'price' in field_lower or '単価' in field_lower or 'cost' in field_lower:
-                column_mapping['unit_price'] = field
+        
+        # まずテンプレート形式をチェック
+        if 'ingredient_name' in fieldnames:
+            column_mapping['ingredient_name'] = 'ingredient_name'
+        if 'capacity' in fieldnames:
+            column_mapping['capacity'] = 'capacity'
+        if 'unit' in fieldnames:
+            column_mapping['unit'] = 'unit'
+        if 'unit_price' in fieldnames:
+            column_mapping['unit_price'] = 'unit_price'
+        
+        # テンプレート形式が見つからない場合は自動検出
+        if not column_mapping:
+            for field in fieldnames:
+                field_lower = field.lower().strip()
+                if 'ingredient' in field_lower or '材料' in field_lower or 'name' in field_lower:
+                    column_mapping['ingredient_name'] = field
+                elif 'capacity' in field_lower or '容量' in field_lower:
+                    column_mapping['capacity'] = field
+                elif 'unit' in field_lower and 'price' not in field_lower or '単位' in field_lower:
+                    column_mapping['unit'] = field
+                elif 'price' in field_lower or '単価' in field_lower or 'cost' in field_lower:
+                    column_mapping['unit_price'] = field
         
         print(f"Column mapping: {column_mapping}")
         
