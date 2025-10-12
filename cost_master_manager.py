@@ -158,10 +158,19 @@ class CostMasterManager:
     def add_or_update_cost(self, ingredient_name: str, capacity: float, 
                            unit: str, unit_price: float) -> bool:
         """
-        原価表に材料を追加または更新（upsertを使用）
+        原価表に材料を追加または更新
         """
         try:
             from datetime import datetime
+            
+            # まず既存のレコードをチェック
+            existing = self.supabase.table('cost_master')\
+                .select('*')\
+                .eq('ingredient_name', ingredient_name)\
+                .eq('capacity', capacity)\
+                .eq('unit', unit)\
+                .execute()
+            
             data = {
                 'ingredient_name': ingredient_name,
                 'capacity': capacity,
@@ -170,12 +179,24 @@ class CostMasterManager:
                 'updated_at': datetime.now().isoformat()
             }
             
-            self.supabase.table('cost_master').upsert(data, on_conflict='ingredient_name').execute()
-            print(f"原価表をUpsertしました: {ingredient_name}")
+            if existing.data:
+                # 既存レコードがある場合は更新
+                self.supabase.table('cost_master')\
+                    .update(data)\
+                    .eq('ingredient_name', ingredient_name)\
+                    .eq('capacity', capacity)\
+                    .eq('unit', unit)\
+                    .execute()
+                print(f"原価表を更新しました: {ingredient_name}")
+            else:
+                # 新規レコードの場合は挿入
+                self.supabase.table('cost_master').insert(data).execute()
+                print(f"原価表に追加しました: {ingredient_name}")
+            
             return True
                 
         except Exception as e:
-            print(f"原価表へのUpsertエラー: {e}")
+            print(f"原価表への操作エラー: {e}")
             return False
     
     def get_cost_info(self, ingredient_name: str) -> Optional[Dict]:
