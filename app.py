@@ -11,7 +11,7 @@ from datetime import datetime
 from flask import Flask, request, abort, render_template, jsonify, send_file
 from linebot.v3.webhook import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent, PostbackEvent
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
@@ -19,7 +19,13 @@ from linebot.v3.messaging import (
     MessagingApiBlob,
     ReplyMessageRequest,
     PushMessageRequest,
-    TextMessage
+    TextMessage,
+    TemplateMessage,
+    ButtonsTemplate,
+    PostbackAction,
+    MessageAction,
+    QuickReply,
+    QuickReplyItem
 )
 from dotenv import load_dotenv
 from azure_vision import AzureVisionAnalyzer
@@ -1033,6 +1039,10 @@ def handle_text_message(event):
   例: 「削除 トマト」
 ・一覧: 「原価一覧」
 
+🎯 UI機能:
+・「材料追加」→ ボタンで簡単に材料を追加
+・「材料を追加」→ 同上
+
 ※原価表に登録されていない材料は計算されません"""
         
         line_bot_api.reply_message(ReplyMessageRequest(
@@ -1059,6 +1069,11 @@ def handle_text_message(event):
     # 原価一覧コマンド
     if text == "原価一覧" or text == "一覧":
         handle_list_cost_command(event)
+        return
+    
+    # 材料追加UIコマンド
+    if text == "材料追加" or text == "材料を追加":
+        send_ingredient_add_menu(event)
         return
     
     # 材料名検索（その他のテキスト）
@@ -1502,6 +1517,227 @@ def answer_follow_up(intent, state):
             return f"「{recipe_name}」の計算で原価が不明だった材料は次の通りです：\n・{', '.join(missing)}"
 
     return None # No answer for this intent
+
+# ===== LINE UI機能 =====
+
+def send_ingredient_add_menu(event):
+    """材料追加メニューを送信"""
+    buttons_template = ButtonsTemplate(
+        text="新たな材料を追加しますか？",
+        actions=[
+            PostbackAction(
+                label="材料を追加",
+                data="action=add_ingredient&step=name"
+            ),
+            PostbackAction(
+                label="材料一覧を見る",
+                data="action=list_ingredients"
+            )
+        ]
+    )
+    
+    template_message = TemplateMessage(
+        alt_text="材料追加メニュー",
+        template=buttons_template
+    )
+    
+    line_bot_api.reply_message(ReplyMessageRequest(
+        reply_token=event.reply_token,
+        messages=[template_message]
+    ))
+
+def send_ingredient_name_input(event):
+    """材料名入力画面を送信"""
+    quick_reply_items = [
+        QuickReplyItem(
+            action=MessageAction(
+                label="トマト",
+                text="トマト"
+            )
+        ),
+        QuickReplyItem(
+            action=MessageAction(
+                label="玉ねぎ",
+                text="玉ねぎ"
+            )
+        ),
+        QuickReplyItem(
+            action=MessageAction(
+                label="豚肉",
+                text="豚肉"
+            )
+        ),
+        QuickReplyItem(
+            action=MessageAction(
+                label="牛乳",
+                text="牛乳"
+            )
+        ),
+        QuickReplyItem(
+            action=MessageAction(
+                label="手動入力",
+                text="手動入力"
+            )
+        )
+    ]
+    
+    quick_reply = QuickReply(items=quick_reply_items)
+    
+    text_message = TextMessage(
+        text="材料名を入力してください\n例: トマト、玉ねぎ、豚肉など",
+        quick_reply=quick_reply
+    )
+    
+    line_bot_api.reply_message(ReplyMessageRequest(
+        reply_token=event.reply_token,
+        messages=[text_message]
+    ))
+
+def send_price_input(event, ingredient_name):
+    """価格入力画面を送信"""
+    quick_reply_items = [
+        QuickReplyItem(
+            action=MessageAction(
+                label="100円/個",
+                text=f"{ingredient_name} 100円/個"
+            )
+        ),
+        QuickReplyItem(
+            action=MessageAction(
+                label="200円/100g",
+                text=f"{ingredient_name} 200円/100g"
+            )
+        ),
+        QuickReplyItem(
+            action=MessageAction(
+                label="300円/1kg",
+                text=f"{ingredient_name} 300円/1kg"
+            )
+        ),
+        QuickReplyItem(
+            action=MessageAction(
+                label="500円/1L",
+                text=f"{ingredient_name} 500円/1L"
+            )
+        ),
+        QuickReplyItem(
+            action=MessageAction(
+                label="手動入力",
+                text=f"{ingredient_name} 手動入力"
+            )
+        )
+    ]
+    
+    quick_reply = QuickReply(items=quick_reply_items)
+    
+    text_message = TextMessage(
+        text=f"{ingredient_name}の価格を入力してください\n例: 100円/個、300円/100g、150円/1kgなど",
+        quick_reply=quick_reply
+    )
+    
+    line_bot_api.reply_message(ReplyMessageRequest(
+        reply_token=event.reply_token,
+        messages=[text_message]
+    ))
+
+def send_confirmation(event, ingredient_name, price):
+    """確認画面を送信"""
+    buttons_template = ButtonsTemplate(
+        text=f"以下の内容で材料を追加しますか？\n\n材料名: {ingredient_name}\n価格: {price}",
+        actions=[
+            PostbackAction(
+                label="追加する",
+                data=f"action=confirm_add&ingredient={ingredient_name}&price={price}"
+            ),
+            PostbackAction(
+                label="キャンセル",
+                data="action=cancel_add"
+            )
+        ]
+    )
+    
+    template_message = TemplateMessage(
+        alt_text="材料追加の確認",
+        template=buttons_template
+    )
+    
+    line_bot_api.reply_message(ReplyMessageRequest(
+        reply_token=event.reply_token,
+        messages=[template_message]
+    ))
+
+@handler.add(PostbackEvent)
+def handle_postback_event(event):
+    """Postbackイベントを処理"""
+    postback_data = event.postback.data
+    user_id = event.source.user_id
+    
+    print(f"Postback受信: {postback_data}")
+    
+    # データをパース
+    data_parts = postback_data.split('&')
+    action = None
+    step = None
+    ingredient = None
+    price = None
+    
+    for part in data_parts:
+        if '=' in part:
+            key, value = part.split('=', 1)
+            if key == 'action':
+                action = value
+            elif key == 'step':
+                step = value
+            elif key == 'ingredient':
+                ingredient = value
+            elif key == 'price':
+                price = value
+    
+    if action == 'add_ingredient':
+        if step == 'name':
+            # 材料名入力画面を送信
+            send_ingredient_name_input(event)
+    
+    elif action == 'list_ingredients':
+        # 材料一覧を表示
+        handle_list_cost_command(event)
+    
+    elif action == 'confirm_add':
+        # 材料を追加
+        if ingredient and price:
+            # 実際の追加処理
+            try:
+                # Groqで価格を解析
+                parsed_data = cost_master_manager.parse_cost_text(f"{ingredient} {price}")
+                if parsed_data:
+                    success = cost_master_manager.add_or_update_cost(
+                        parsed_data['ingredient_name'],
+                        parsed_data['capacity'],
+                        parsed_data['unit'],
+                        parsed_data['unit_price']
+                    )
+                    
+                    if success:
+                        reply_text = f"✅ {ingredient} ({price}) を追加しました！"
+                    else:
+                        reply_text = f"❌ {ingredient} の追加に失敗しました"
+                else:
+                    reply_text = f"❌ 価格の解析に失敗しました: {price}"
+                    
+            except Exception as e:
+                reply_text = f"❌ エラーが発生しました: {str(e)}"
+            
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=reply_text)]
+            ))
+    
+    elif action == 'cancel_add':
+        reply_text = "材料追加をキャンセルしました"
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=reply_text)]
+        ))
 
 
 if __name__ == "__main__":
