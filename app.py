@@ -7,7 +7,7 @@ import requests
 import csv
 import io
 import re
-import pandas as pd
+# import pandas as pd  # 軽量化のため削除
 from datetime import datetime
 from unit_converter import UnitConverter
 from flask import Flask, request, abort, render_template, jsonify, send_file, redirect, url_for, flash
@@ -120,7 +120,7 @@ except Exception as e:
 
 
 def read_file_data(file):
-    """CSV/Excelファイルを読み込んでDataFrameを返す"""
+    """CSV/Excelファイルを読み込んで辞書のリストを返す"""
     try:
         filename = file.filename.lower()
         file.seek(0)  # ファイルポインタを先頭に戻す
@@ -128,17 +128,54 @@ def read_file_data(file):
         if filename.endswith('.csv'):
             # CSVファイルの読み込み
             csv_data = file.read().decode('utf-8-sig')
-            df = pd.read_csv(io.StringIO(csv_data))
-            print(f"🔍 CSV file loaded: {len(df)} rows")
-        elif filename.endswith(('.xlsx', '.xls')):
-            # Excelファイルの読み込み
-            file.seek(0)
-            df = pd.read_excel(file, engine='openpyxl' if filename.endswith('.xlsx') else 'xlrd')
-            print(f"🔍 Excel file loaded: {len(df)} rows")
+            csv_reader = csv.DictReader(io.StringIO(csv_data))
+            data_rows = list(csv_reader)
+            print(f"🔍 CSV file loaded: {len(data_rows)} rows")
+        elif filename.endswith('.xlsx'):
+            # Excelファイルの読み込み（openpyxl使用）
+            from openpyxl import load_workbook
+            workbook = load_workbook(file)
+            worksheet = workbook.active
+            data_rows = []
+            
+            # ヘッダー行を取得
+            headers = []
+            for cell in worksheet[1]:
+                headers.append(cell.value)
+            
+            # データ行を取得
+            for row in worksheet.iter_rows(min_row=2, values_only=True):
+                row_dict = {}
+                for i, value in enumerate(row):
+                    if i < len(headers):
+                        row_dict[headers[i]] = value
+                data_rows.append(row_dict)
+            
+            print(f"🔍 Excel file loaded: {len(data_rows)} rows")
+        elif filename.endswith('.xls'):
+            # Excelファイルの読み込み（xlrd使用）
+            import xlrd
+            workbook = xlrd.open_workbook(file_contents=file.read())
+            worksheet = workbook.sheet_by_index(0)
+            data_rows = []
+            
+            # ヘッダー行を取得
+            headers = []
+            for col in range(worksheet.ncols):
+                headers.append(worksheet.cell_value(0, col))
+            
+            # データ行を取得
+            for row in range(1, worksheet.nrows):
+                row_dict = {}
+                for col in range(worksheet.ncols):
+                    row_dict[headers[col]] = worksheet.cell_value(row, col)
+                data_rows.append(row_dict)
+            
+            print(f"🔍 Excel file loaded: {len(data_rows)} rows")
         else:
             raise ValueError(f"Unsupported file format: {filename}")
         
-        return df
+        return data_rows
     except Exception as e:
         print(f"❌ File reading error: {e}")
         raise
@@ -258,18 +295,17 @@ def admin_upload():
             return jsonify({"error": "CSV/Excelファイルのみアップロード可能です"}), 400
         
         # ファイルを読み込み
-        df = read_file_data(file)
+        data_rows = read_file_data(file)
         
         # 列名の自動検出
-        fieldnames = df.columns.tolist()
+        if data_rows:
+            fieldnames = list(data_rows[0].keys())
+        else:
+            fieldnames = []
         print(f"🔍 File columns: {fieldnames}")
         print(f"🔍 File data preview (first 3 rows):")
-        for i in range(min(3, len(df))):
-            row_data = df.iloc[i].to_dict()
-            print(f"  Row {i+1}: {row_data}")
-        
-        # DataFrameを辞書のリストに変換
-        data_rows = df.to_dict('records')
+        for i in range(min(3, len(data_rows))):
+            print(f"  Row {i+1}: {data_rows[i]}")
         
         # 列名マッピング（テンプレート形式を優先）
         column_mapping = {}
