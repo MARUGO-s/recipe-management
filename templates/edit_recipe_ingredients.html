@@ -102,8 +102,23 @@
 
         <form action="{{ url_for('save_edited_ingredients') }}" method="POST">
             <input type="hidden" name="user_id" value="{{ user_id }}">
-            <input type="hidden" name="recipe_name" value="{{ recipe_data.recipe_name }}">
-            <input type="hidden" name="servings" value="{{ recipe_data.servings }}">
+            
+            <!-- レシピ基本情報 -->
+            <div class="ingredient-card mb-4">
+                <h5>📝 レシピ基本情報</h5>
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label for="recipe_name" class="form-label">料理名</label>
+                        <input type="text" class="form-control" id="recipe_name" name="recipe_name" 
+                               value="{{ recipe_data.recipe_name }}" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="servings" class="form-label">人数</label>
+                        <input type="number" min="1" class="form-control" id="servings" name="servings" 
+                               value="{{ recipe_data.servings }}" required>
+                    </div>
+                </div>
+            </div>
 
             <div id="ingredients-container">
                 {% for ingredient in recipe_data.ingredients %}
