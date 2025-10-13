@@ -45,6 +45,8 @@ class GroqRecipeParser:
 出力形式：
 {{"recipe_name": "料理名", "servings": 2, "ingredients": [{{"name": "材料名", "quantity": 数値, "unit": "単位", "capacity": 1, "capacity_unit": "個"}}]}}
 
+注意：各材料には必ずcapacityとcapacity_unitを含めてください。
+
 テキスト：
 {ocr_text}
 
@@ -88,6 +90,13 @@ JSON："""
             recipe_data = json.loads(response_text)
             
             print(f"✅ JSON解析成功: {recipe_data}")
+            
+            # 不足しているフィールドを自動補完
+            for ingredient in recipe_data.get('ingredients', []):
+                if 'capacity' not in ingredient:
+                    ingredient['capacity'] = 1
+                if 'capacity_unit' not in ingredient:
+                    ingredient['capacity_unit'] = '個'
             
             # バリデーション
             if not self._validate_recipe_data(recipe_data):
