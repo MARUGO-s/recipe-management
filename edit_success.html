@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>更新完了</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #212529; /* Dark background */
+            color: #e9ecef; /* Light text */
+            padding-top: 50px;
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            background-color: #343a40; /* Darker container */
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); /* Darker shadow */
+        }
+        h1 {
+            color: #28a745; /* Green for success */
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 1.1rem;
+            color: #ced4da;
+        }
+        .btn-primary {
+            background-color: #00bcd4;
+            border-color: #00bcd4;
+            transition: background-color 0.2s, border-color 0.2s;
+            margin-top: 20px;
+        }
+        .btn-primary:hover {
+            background-color: #0097a7;
+            border-color: #0097a7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✅ 更新が完了しました！</h1>
+        <p>{{ success_message }}</p>
+        <p>LINEアプリに戻って操作を続けてください。</p>
+        <!-- LINEアプリに戻るためのボタンやリンク（LINEの仕様により直接アプリを開くのは難しい場合がある） -->
+        <!-- <a href="line://" class="btn btn-primary">LINEアプリに戻る</a> -->
+    </div>
+</body>
+</html>

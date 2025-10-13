@@ -2778,11 +2778,18 @@ def save_edited_ingredients():
         user_state['recipe_data']['ingredients'] = edited_ingredients
         set_user_state(user_id, user_state)
 
-        # 成功メッセージを表示してLINEにリダイレクト
-        # LINEに直接リダイレクトするのではなく、成功メッセージを表示するページにリダイレクト
-        # または、LINEのFlexMessageで「原価計算する」ボタンなどを再度表示する
-        # ここでは、一時的に成功メッセージを表示するページにリダイレクト
-        return redirect(url_for('edit_recipe_ingredients', user_id=user_id, success_message="レシピ材料を更新しました！LINEに戻って原価計算または保存してください。"))
+        # LINEにプッシュメッセージを送信
+        try:
+            line_bot_api.push_message(PushMessageRequest(
+                to=user_id,
+                messages=[TextMessage(text="✅ レシピ材料を更新しました！LINEに戻って「原価計算する」または「そのまま登録」ボタンをタップしてください。")]
+            ))
+        except Exception as line_e:
+            print(f"❌ LINEプッシュメッセージ送信エラー: {line_e}")
+            # LINEメッセージ送信失敗時でも、Webページは成功と表示
+        
+        # 成功メッセージを表示するシンプルなページをレンダリング
+        return render_template('edit_success.html', user_id=user_id, success_message="レシピ材料を更新しました！LINEに戻って操作を続けてください。")
 
     except Exception as e:
         print(f"❌ 材料保存エラー: {e}")
