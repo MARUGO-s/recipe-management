@@ -2943,6 +2943,30 @@ def view_recipe_detail(recipe_id):
         return "レシピの取得に失敗しました", 500
 
 
+@app.route("/api/get-cost-master/<ingredient_name>", methods=['GET'])
+def get_cost_master(ingredient_name):
+    """材料名からcost_masterの情報を取得"""
+    try:
+        result = supabase.table('cost_master').select('*').eq('ingredient_name', ingredient_name).execute()
+        
+        if result.data:
+            return jsonify({
+                "success": True,
+                "cost_master": result.data[0]
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "cost_masterにデータが見つかりません"
+            })
+            
+    except Exception as e:
+        print(f"❌ cost_master取得エラー: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 @app.route("/api/update-ingredient-cost", methods=['POST'])
 def update_ingredient_cost():
     """材料の原価を更新するAPI"""
