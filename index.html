@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>レシピ原価計算Bot - データベース管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #e0e0e0;
+        }
+        .main-container {
+            background: rgba(30, 30, 46, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .header-section {
+            background: linear-gradient(135deg, #2d4059 0%, #1f3044 100%);
+            color: #e0e0e0;
+            border-radius: 15px 15px 0 0;
+            padding: 2rem;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        .feature-card {
+            background: rgba(40, 40, 60, 0.8);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .feature-card .card-body {
+            color: #e0e0e0;
+        }
+        .feature-card .card-title {
+            color: #64b5f6 !important;
+        }
+        .feature-card .text-success {
+            color: #81c784 !important;
+        }
+        .feature-card .text-muted {
+            color: #b0b0b0 !important;
+        }
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            margin: 0 auto 1rem;
+        }
+        .upload-area {
+            border: 2px dashed #64b5f6;
+            border-radius: 15px;
+            padding: 3rem;
+            text-align: center;
+            background: rgba(30, 30, 46, 0.5);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            border-color: #42a5f5;
+            background: rgba(30, 50, 80, 0.5);
+        }
+        .upload-area.dragover {
+            border-color: #81c784;
+            background: rgba(40, 80, 60, 0.5);
+        }
+        .upload-area h5, .upload-area p {
+            color: #e0e0e0;
+        }
+        .btn-custom {
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #2d4059 0%, #1f3044 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-primary-custom:hover {
+            background: linear-gradient(135deg, #3d5069 0%, #2f4054 100%);
+        }
+        .btn-success-custom {
+            background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-success-custom:hover {
+            background: linear-gradient(135deg, #3e8d42 0%, #2b6e30 100%);
+        }
+        .btn-outline-primary {
+            color: #64b5f6;
+            border-color: #64b5f6;
+        }
+        .btn-outline-primary:hover {
+            background-color: #64b5f6;
+            color: #1a1a2e;
+        }
+        .btn-outline-success {
+            color: #81c784;
+            border-color: #81c784;
+        }
+        .btn-outline-success:hover {
+            background-color: #81c784;
+            color: #1a1a2e;
+        }
+        .btn-outline-danger {
+            color: #e57373;
+            border-color: #e57373;
+        }
+        .btn-outline-danger:hover {
+            background-color: #e57373;
+            color: #1a1a2e;
+        }
+        .status-badge {
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .progress-custom {
+            height: 8px;
+            border-radius: 10px;
+            background: rgba(50, 50, 70, 0.8);
+        }
+        .progress-bar-custom {
+            background: linear-gradient(135deg, #64b5f6 0%, #42a5f5 100%);
+            border-radius: 10px;
+        }
+        .text-primary {
+            color: #64b5f6 !important;
+        }
+        .text-success {
+            color: #81c784 !important;
+        }
+        .text-info {
+            color: #4dd0e1 !important;
+        }
+        .bg-primary {
+            background-color: #64b5f6 !important;
+        }
+        .bg-success {
+            background-color: #81c784 !important;
+        }
+        .bg-info {
+            background-color: #4dd0e1 !important;
+        }
+        .form-check-input:checked {
+            background-color: #64b5f6;
+            border-color: #64b5f6;
+        }
+        .form-check-label {
+            color: #e0e0e0;
+        }
+        small {
+            color: #b0b0b0 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="main-container">
+                    <!-- Header Section -->
+                    <div class="header-section text-center">
+                        <h1 class="display-4 fw-bold mb-3">
+                            <i class="fas fa-utensils me-3"></i>
+                            レシピ原価計算Bot
+                        </h1>
+                        <p class="lead mb-0">データベース管理システム</p>
+                        <div class="mt-3">
+                            <span class="status-badge bg-success text-white">
+                                <i class="fas fa-check-circle me-2"></i>システム稼働中
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="p-4">
+                        <!-- Feature Cards -->
+                        <div class="row">
+                            <!-- File Upload Card -->
+                            <div class="col-md-6">
+                                <div class="feature-card h-100">
+                                    <div class="card-body text-center p-4">
+                                        <div class="feature-icon bg-primary">
+                                            <i class="fas fa-upload"></i>
+                                        </div>
+                                        <h4 class="card-title fw-bold text-primary">ファイルアップロード</h4>
+                                        <p class="card-text text-muted">
+                                            CSVファイルをアップロードして原価表を更新できます
+                                        </p>
+                                        
+                                        <!-- Upload Type Selection -->
+                                        <div class="mb-3">
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="uploadType" id="costMasterUpload" value="cost_master" checked>
+                                                <label class="form-check-label" for="costMasterUpload">
+                                                    原価表CSV
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="uploadType" id="transactionUpload" value="transaction">
+                                                <label class="form-check-label" for="transactionUpload">
+                                                    取引データCSV
+                                                </label>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Upload Area -->
+                                        <div class="upload-area mb-3" id="uploadArea">
+                                            <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                            <h5>ファイルをドラッグ&ドロップ</h5>
+                                            <p class="text-muted">またはクリックしてファイルを選択</p>
+                                            <input type="file" id="fileInput" accept=".csv" style="display: none;">
+                                        </div>
+
+                                        <!-- Upload Progress -->
+                                        <div id="uploadProgress" class="progress-custom mb-3" style="display: none;">
+                                            <div class="progress-bar-custom" role="progressbar" style="width: 0%"></div>
+                                        </div>
+
+                                        <!-- Upload Status -->
+                                        <div id="uploadStatus" class="alert" style="display: none;"></div>
+
+                                        <!-- Upload Button -->
+                                        <button class="btn btn-primary-custom btn-custom text-white" id="uploadBtn" disabled>
+                                            <i class="fas fa-upload me-2"></i>アップロード
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Template Download Card -->
+                            <div class="col-md-6">
+                                <div class="feature-card h-100">
+                                    <div class="card-body text-center p-4">
+                                        <div class="feature-icon bg-success">
+                                            <i class="fas fa-download"></i>
+                                        </div>
+                                        <h4 class="card-title fw-bold text-success">テンプレートダウンロード</h4>
+                                        <p class="card-text text-muted">
+                                            最適化されたCSVテンプレートをダウンロードできます
+                                        </p>
+                                        
+                                        <!-- Template Options -->
+                                        <div class="mb-3">
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="templateType" id="basicTemplate" value="basic" checked>
+                                                <label class="form-check-label" for="basicTemplate">
+                                                    基本テンプレート
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="templateType" id="advancedTemplate" value="advanced">
+                                                <label class="form-check-label" for="advancedTemplate">
+                                                    詳細テンプレート
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Download Button -->
+                                        <button class="btn btn-success-custom btn-custom text-white" id="downloadBtn">
+                                            <i class="fas fa-download me-2"></i>テンプレートダウンロード
+                                        </button>
+                                        
+                                        <!-- Transaction Template Button -->
+                                        <button class="btn btn-outline-success btn-custom mt-2" id="downloadTransactionBtn">
+                                            <i class="fas fa-file-csv me-2"></i>取引データテンプレート
+                                        </button>
+
+                                        <!-- Sample Data -->
+                                        <div class="mt-3">
+                                            <small class="text-muted">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                サンプルデータ付きでダウンロードされます<br>
+                                                <strong>原価表:</strong> 材料名, 容量, 単位, 単価<br>
+                                                <strong>取引データ:</strong> 取引先名, 商品名, 単価, 単位, 規格から自動抽出
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Database Management Section -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="feature-card">
+                                    <div class="card-body">
+                                        <h4 class="card-title fw-bold text-primary mb-3">
+                                            <i class="fas fa-database me-2"></i>データベース管理
+                                        </h4>
+                                        
+                                        <!-- Database Stats -->
+                                        <div class="row mb-4">
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h5 class="text-primary fw-bold" id="totalIngredients">-</h5>
+                                                    <small class="text-muted">登録材料数</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h5 class="text-success fw-bold" id="totalRecipes">-</h5>
+                                                    <small class="text-muted">保存レシピ数</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h5 class="text-info fw-bold" id="lastUpdate">-</h5>
+                                                    <small class="text-muted">最終更新</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <button class="btn btn-outline-primary btn-sm" id="refreshBtn">
+                                                        <i class="fas fa-sync-alt me-1"></i>更新
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Database Actions -->
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <button class="btn btn-outline-primary btn-custom w-100" id="viewDataBtn">
+                                                    <i class="fas fa-eye me-2"></i>データ確認
+                                                </button>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button class="btn btn-outline-success btn-custom w-100" id="exportDataBtn">
+                                                    <i class="fas fa-file-export me-2"></i>データエクスポート
+                                                </button>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button class="btn btn-outline-danger btn-custom w-100" id="clearDataBtn">
+                                                    <i class="fas fa-trash-alt me-2"></i>データクリア
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- System Status Section -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="feature-card">
+                                    <div class="card-body">
+                                        <h4 class="card-title fw-bold text-info mb-3">
+                                            <i class="fas fa-server me-2"></i>システムステータス
+                                        </h4>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="feature-icon bg-success me-3" style="width: 40px; height: 40px; font-size: 16px;">
+                                                        <i class="fas fa-check"></i>
+                                                    </div>
+                                                    <div>
+                                                        <h6 class="mb-0">LINE Bot</h6>
+                                                        <small class="text-success">稼働中</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="feature-icon bg-success me-3" style="width: 40px; height: 40px; font-size: 16px;">
+                                                        <i class="fas fa-check"></i>
+                                                    </div>
+                                                    <div>
+                                                        <h6 class="mb-0">Azure Vision</h6>
+                                                        <small class="text-success">稼働中</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="feature-icon bg-success me-3" style="width: 40px; height: 40px; font-size: 16px;">
+                                                        <i class="fas fa-check"></i>
+                                                    </div>
+                                                    <div>
+                                                        <h6 class="mb-0">Groq API</h6>
+                                                        <small class="text-success">稼働中</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="feature-icon bg-success me-3" style="width: 40px; height: 40px; font-size: 16px;">
+                                                        <i class="fas fa-check"></i>
+                                                    </div>
+                                                    <div>
+                                                        <h6 class="mb-0">Supabase</h6>
+                                                        <small class="text-success">稼働中</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script>
+        // デバッグ用: ページ読み込み確認
+        console.log('管理画面JavaScript読み込み開始');
+        
+        // 基本的なボタン機能テスト
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded実行');
+            
+            // テンプレートダウンロードボタンのテスト
+            const downloadBtn = document.getElementById('downloadBtn');
+            if (downloadBtn) {
+                console.log('ダウンロードボタン見つかりました');
+                downloadBtn.addEventListener('click', function() {
+                    console.log('ダウンロードボタンクリック');
+                    window.location.href = '/admin/template?type=basic';
+                });
+            } else {
+                console.error('ダウンロードボタンが見つかりません');
+            }
+            
+            // 統計更新ボタンのテスト
+            const refreshBtn = document.getElementById('refreshBtn');
+            if (refreshBtn) {
+                console.log('更新ボタン見つかりました');
+                refreshBtn.addEventListener('click', function() {
+                    console.log('更新ボタンクリック');
+                    fetch('/admin/stats')
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('統計データ:', data);
+                            document.getElementById('totalIngredients').textContent = data.ingredients || 0;
+                            document.getElementById('totalRecipes').textContent = data.recipes || 0;
+                            document.getElementById('lastUpdate').textContent = data.last_update || '-';
+                        })
+                        .catch(error => console.error('統計取得エラー:', error));
+                });
+            } else {
+                console.error('更新ボタンが見つかりません');
+            }
+        });
+    </script>
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html>
