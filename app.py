@@ -1063,7 +1063,7 @@ def handle_image_message(event):
         if not recipe_data:
             print(f"❌ Groq解析失敗: recipe_dataがNone")
             # OCRテキストを整形して表示
-            formatted_text = self._format_ocr_text_for_display(ocr_text)
+            formatted_text = _format_ocr_text_for_display(ocr_text)
             line_bot_api.push_message(PushMessageRequest(
                 to=event.source.user_id,
                 messages=[TextMessage(text=f"レシピ情報を解析できませんでした。\n\n📄 抽出されたテキスト:\n{formatted_text}") ]
