@@ -35,7 +35,12 @@ class AzureVisionAnalyzer:
                 "Content-Type": "application/json"
             }
             
-            body = {"url": image_url}
+            body = {
+                "url": image_url,
+                "features": ["Read"],
+                "language": "ja",  # 日本語を明示的に指定
+                "model-version": "latest"
+            }
             
             # Step 1: 画像解析を開始
             response = requests.post(analyze_url, headers=headers, json=body, timeout=10)
@@ -77,8 +82,14 @@ class AzureVisionAnalyzer:
                 "Content-Type": "application/octet-stream"
             }
             
+            # クエリパラメータで言語を指定
+            params = {
+                "language": "ja",  # 日本語を明示的に指定
+                "model-version": "latest"
+            }
+            
             # Step 1: 画像解析を開始
-            response = requests.post(analyze_url, headers=headers, data=image_bytes, timeout=10)
+            response = requests.post(analyze_url, headers=headers, data=image_bytes, params=params, timeout=10)
             response.raise_for_status()
             
             operation_location = response.headers.get('Operation-Location')
@@ -133,8 +144,10 @@ class AzureVisionAnalyzer:
         if result.get('analyzeResult') and result['analyzeResult'].get('readResults'):
             for page in result['analyzeResult']['readResults']:
                 for line in page.get("lines", []):
-                    extracted_text.append(line.get("text", ""))
-                    language_codes.append(line.get("language", "ja"))
+                    line_text = line.get("text", "")
+                    if line_text.strip():
+                        extracted_text.append(line_text)
+                        language_codes.append(line.get("language", "ja"))
         
         if not extracted_text:
             return None, None
@@ -143,7 +156,14 @@ class AzureVisionAnalyzer:
         from collections import Counter
         dominant_language = Counter(language_codes).most_common(1)[0][0] if language_codes else 'ja'
 
-        return "\n".join(extracted_text), dominant_language
+        # テキストを結合して返す
+        full_text = "\n".join(extracted_text)
+        
+        # デバッグ用ログ
+        print(f"🔍 Azure Vision OCR結果（言語: {dominant_language}）:")
+        print(f"📄 抽出テキスト（最初の500文字）:\n{full_text[:500]}")
+        
+        return full_text, dominant_language
 
 
 if __name__ == "__main__":
