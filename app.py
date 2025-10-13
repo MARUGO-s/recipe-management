@@ -2209,7 +2209,7 @@ def interpret_follow_up(user_text, recipe_name):
         
         response = groq_parser.groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             temperature=0.0,
         )
         intent = response.choices[0].message.content.strip().lower()
