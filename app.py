@@ -23,6 +23,7 @@ from linebot.v3.messaging import (
     FlexMessage,
     FlexContainer
 )
+from typing import Optional # 追加
 
 # LINE UI機能は一時的に無効化（安定性を優先）
 LINE_UI_AVAILABLE = False
