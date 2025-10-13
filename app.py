@@ -126,8 +126,15 @@ def read_file_data(file):
         file.seek(0)  # ファイルポインタを先頭に戻す
         
         if filename.endswith('.csv'):
-            # CSVファイルの読み込み
-            csv_data = file.read().decode('utf-8-sig')
+            # CSVファイルの読み込み（複数エンコーディング対応）
+            try:
+                # まずUTF-8で試行
+                csv_data = file.read().decode('utf-8-sig')
+            except UnicodeDecodeError:
+                # Shift-JISで試行
+                file.seek(0)
+                csv_data = file.read().decode('shift_jis')
+            
             csv_reader = csv.DictReader(io.StringIO(csv_data))
             data_rows = list(csv_reader)
             print(f"🔍 CSV file loaded: {len(data_rows)} rows")
@@ -320,6 +327,20 @@ def admin_upload():
         if 'unit_price' in fieldnames:
             column_mapping['unit_price'] = 'unit_price'
         
+        # 新しい基本形式をチェック（cost_file.csv形式）
+        if '商品名' in fieldnames:
+            column_mapping['ingredient_name'] = '商品名'
+        if '容量' in fieldnames:
+            column_mapping['capacity'] = '容量'
+        if '単位' in fieldnames:
+            column_mapping['unit'] = '単位'
+        if '単価' in fieldnames:
+            column_mapping['unit_price'] = '単価'
+        if '取引先名' in fieldnames:
+            column_mapping['supplier'] = '取引先名'
+        if '伝票日付' in fieldnames:
+            column_mapping['date'] = '伝票日付'
+        
         # テンプレート形式が見つからない場合は自動検出
         if not column_mapping:
             for field in fieldnames:
@@ -357,12 +378,26 @@ def admin_upload():
                     skipped_count += 1
                     continue
                 
-                # 容量の自動抽出（商品名から）
-                capacity = 1.0
+                # 容量の取得と処理
+                capacity_str = row.get(column_mapping.get('capacity', ''), '').strip()
                 unit = row.get(column_mapping.get('unit', ''), '個').strip()
                 
-                # 商品名から容量を抽出
-                capacity, extracted_unit = extract_capacity_from_spec(ingredient_name, ingredient_name, unit)
+                # 容量が空の場合は空白のまま（自動抽出しない）
+                if not capacity_str:
+                    capacity = None  # 空白のまま登録
+                    extracted_unit = unit if unit else '個'
+                    print(f"🔍 容量空白: {ingredient_name} → 容量なし、単位:{extracted_unit}")
+                else:
+                    # 容量が指定されている場合はその値を使用
+                    try:
+                        capacity = float(capacity_str)
+                        extracted_unit = unit if unit else '個'
+                        print(f"🔍 容量指定: {ingredient_name} → {capacity}{extracted_unit}")
+                    except ValueError:
+                        # 数値変換できない場合は空白のまま
+                        capacity = None
+                        extracted_unit = unit if unit else '個'
+                        print(f"🔍 容量変換エラー、空白で登録: {ingredient_name} → 容量なし、単位:{extracted_unit}")
                 
                 # 取引先情報の取得
                 supplier_name = row.get(column_mapping.get('supplier', ''), '').strip()
