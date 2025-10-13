@@ -2961,27 +2961,29 @@ def update_ingredient_cost():
             quantity = quantity or ingredient_data['quantity']
             unit = unit or ingredient_data['unit']
         
-        # 数値の検証
+        # 数値の検証（分量は文字列のまま保持、計算用にのみ数値変換）
         try:
-            quantity = float(quantity)
+            # 分量から数値と単位を抽出
+            quantity_match = re.match(r'^(\d+(?:\.\d+)?)\s*(.*)$', str(quantity))
+            if not quantity_match:
+                return jsonify({"success": False, "error": "分量の形式が正しくありません"}), 400
+            
+            quantity_value = float(quantity_match.group(1))  # 計算用の数値
+            quantity_unit = quantity_match.group(2) or unit  # 単位
+            
             unit_price = float(unit_price)
             capacity = float(capacity)
         except (ValueError, TypeError) as e:
             return jsonify({"success": False, "error": f"数値の形式が正しくありません: {str(e)}"}), 400
         
-        # 単位変換は適用しない（ユーザーの入力をそのまま使用）
-        # converted_quantity, converted_unit = UnitConverter.convert_quantity(
-        #     quantity, unit, ingredient_name
-        # )
-        
-        # 原価を計算 (単価 × 分量 / 容量)
-        cost = unit_price * quantity / capacity
+        # 原価を計算 (単価 × 分量の数値 / 容量)
+        cost = unit_price * quantity_value / capacity
         
         # 材料の原価、分量、単位、材料名を更新（ユーザー入力の値をそのまま使用）
         update_data = {
             'cost': cost,
-            'quantity': quantity,
-            'unit': unit
+            'quantity': quantity_value,  # 計算用の数値
+            'unit': quantity_unit        # 抽出した単位
         }
         
         # 材料名が変更されている場合は更新
@@ -2996,11 +2998,11 @@ def update_ingredient_cost():
             cost_master_manager.add_or_update_cost(
                 ingredient_name=ingredient_name,
                 capacity=capacity,
-                unit=unit,
+                unit=quantity_unit,
                 unit_price=unit_price,
-                unit_column=unit
+                unit_column=quantity_unit
             )
-            print(f"✅ cost_masterに材料を追加/更新: {ingredient_name} ({quantity}{unit})")
+            print(f"✅ cost_masterに材料を追加/更新: {ingredient_name} ({quantity_value}{quantity_unit})")
         except Exception as e:
             print(f"⚠️ cost_master更新エラー: {e}")
             # cost_masterの更新に失敗しても材料の原価更新は続行
@@ -3029,8 +3031,8 @@ def update_ingredient_cost():
             "success": True,
             "message": "原価を更新しました",
             "cost": cost,
-            "quantity": quantity,
-            "unit": unit
+            "quantity": quantity_value,
+            "unit": quantity_unit
         })
         
     except Exception as e:
