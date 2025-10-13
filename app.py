@@ -898,15 +898,25 @@ def handle_image_message(event):
 
 
         # 画像データを取得
-
-
-        image_bytes = b''
-
-
-        for chunk in message_content.iter_content():
-
-
-            image_bytes += chunk
+        try:
+            image_bytes = b''
+            
+            print(f"🔍 画像データ取得開始: {type(message_content)}")
+            
+            for chunk in message_content.iter_content():
+                image_bytes += chunk
+                
+            print(f"✅ 画像データ取得成功: {len(image_bytes)} bytes")
+            
+        except Exception as e:
+            print(f"❌ 画像データ取得エラー: {e}")
+            import traceback
+            traceback.print_exc()
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="画像の取得に失敗しました。")]
+            ))
+            return
 
 
         
@@ -933,7 +943,19 @@ def handle_image_message(event):
         
 
 
-        ocr_text, detected_language = azure_analyzer.analyze_image_from_bytes(image_bytes)
+        try:
+            print(f"🔍 Azure Vision API呼び出し開始: {len(image_bytes)} bytes")
+            ocr_text, detected_language = azure_analyzer.analyze_image_from_bytes(image_bytes)
+            print(f"✅ Azure Vision API呼び出し成功")
+        except Exception as e:
+            print(f"❌ Azure Vision API呼び出しエラー: {e}")
+            import traceback
+            traceback.print_exc()
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="画像解析に失敗しました。")]
+            ))
+            return
 
 
         
