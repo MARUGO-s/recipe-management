@@ -2906,6 +2906,31 @@ def view_recipes():
         return render_template('view_recipes.html', recipes=[], error_message=f"レシピの取得中にエラーが発生しました: {str(e)}")
 
 
+@app.route("/recipe/<recipe_id>", methods=['GET'])
+def view_recipe_detail(recipe_id):
+    """レシピ詳細を表示"""
+    try:
+        # レシピ情報を取得
+        recipe_response = supabase.table('recipes').select('*').eq('id', recipe_id).execute()
+        
+        if not recipe_response.data:
+            return "レシピが見つかりません", 404
+            
+        recipe = recipe_response.data[0]
+        
+        # 材料情報を取得
+        ingredients_response = supabase.table('ingredients').select('*').eq('recipe_id', recipe_id).order('ingredient_name').execute()
+        ingredients = ingredients_response.data if ingredients_response.data else []
+        
+        return render_template('recipe_detail.html', recipe=recipe, ingredients=ingredients)
+
+    except Exception as e:
+        print(f"❌ レシピ詳細取得エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return "レシピの取得に失敗しました", 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)

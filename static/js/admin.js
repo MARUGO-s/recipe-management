@@ -580,7 +580,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                             <tbody>
                                                 ${data.recipes?.map(item => `
                                                     <tr>
-                                                        <td>${item.recipe_name || '-'}</td>
+                                                        <td>
+                                                            <a href="/recipe/${item.id}" target="_blank" style="color: #81c784; text-decoration: none;">
+                                                                <i class="fas fa-eye me-1"></i>${item.recipe_name || '-'}
+                                                            </a>
+                                                        </td>
                                                         <td>${item.servings || 0}人前</td>
                                                         <td>${new Date(item.created_at).toLocaleDateString()}</td>
                                                     </tr>
