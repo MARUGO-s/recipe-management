@@ -655,13 +655,17 @@
                 return;
             }
             
-            // 分量を数値と単位に分離（デバッグログ追加）
-            console.log('🔍 分量入力:', quantityInput);
+            // 分量を数値と単位に分離（詳細デバッグログ追加）
+            console.log('🔍 分量入力（生データ）:', quantityInput);
+            console.log('🔍 分量入力の型:', typeof quantityInput);
+            console.log('🔍 分量入力の長さ:', quantityInput.length);
             
-            // より厳密な正規表現で数値と単位を分離
+            // 数値のみの場合も対応する正規表現
             const quantityMatch = quantityInput.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]*)$/);
+            console.log('🔍 正規表現マッチ結果:', quantityMatch);
+            
             if (!quantityMatch) {
-                alert('分量の形式が正しくありません（例：150g、2個）');
+                alert('分量の形式が正しくありません（例：150、150g、2個）');
                 return;
             }
             
@@ -669,6 +673,22 @@
             const unit = quantityMatch[2] || '';
             
             console.log('🔍 分離結果:', { quantity, unit });
+            console.log('🔍 数値の型:', typeof quantity);
+            console.log('🔍 単位の型:', typeof unit);
+            
+            // 送信データを準備
+            const requestData = {
+                ingredient_id: ingredientId,
+                unit_price: parseFloat(unitPrice),
+                capacity: parseFloat(capacity),
+                capacity_unit: capacityUnit,
+                ingredient_name: ingredientName,
+                quantity: quantity,
+                unit: unit
+            };
+            
+            console.log('🔍 送信データ:', requestData);
+            console.log('🔍 送信データのJSON:', JSON.stringify(requestData));
             
             try {
                 const response = await fetch('/api/update-ingredient-cost', {
@@ -676,15 +696,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        ingredient_id: ingredientId,
-                        unit_price: parseFloat(unitPrice),
-                        capacity: parseFloat(capacity),
-                        capacity_unit: capacityUnit,
-                        ingredient_name: ingredientName,
-                        quantity: quantity,
-                        unit: unit
-                    })
+                    body: JSON.stringify(requestData)
                 });
                 
                 const result = await response.json();
