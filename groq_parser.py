@@ -51,7 +51,7 @@ class GroqRecipeParser:
 注意：
 - 各材料には必ずcapacityとcapacity_unitを含めてください
 - 分量が「適量」の場合は quantity: 0 としてください
-- 単位が「枚」「本」「個」などの場合は適切に判定してください
+- 単位が「枚」「本」「個」などの場合は適切に判定してください。**quantityが0でない場合、unitは空にしないでください。**
 
 テキスト：
 {ocr_text}
