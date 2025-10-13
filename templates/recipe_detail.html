@@ -638,9 +638,6 @@
         }
 
         async function saveCost() {
-            // 強制的にアラートを表示してJavaScript実行を確認
-            alert('🔍 JavaScript実行確認: saveCost関数が呼び出されました');
-            
             const ingredientId = document.getElementById('ingredientId').value;
             const unitPrice = document.getElementById('unitPrice').value;
             const capacity = document.getElementById('capacity').value;
@@ -662,9 +659,6 @@
             console.log('🔍 分量入力（生データ）:', quantityInput);
             console.log('🔍 分量入力の型:', typeof quantityInput);
             console.log('🔍 分量入力の長さ:', quantityInput.length);
-            
-            // アラートでも確認
-            alert(`🔍 分量入力確認: "${quantityInput}" (型: ${typeof quantityInput}, 長さ: ${quantityInput.length})`);
             
             // 数値のみの場合も対応する正規表現
             const quantityMatch = quantityInput.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]*)$/);
@@ -708,8 +702,18 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    // ページをリロードして更新された内容を表示
-                    location.reload();
+                    // デバッグ用：ページリロードを一時的に無効化
+                    console.log('✅ 保存成功！ページリロードをスキップ（デバッグ用）');
+                    console.log('📊 サーバー応答:', result);
+                    
+                    // モーダルを閉じる
+                    const costModal = bootstrap.Modal.getInstance(document.getElementById('costModal'));
+                    if (costModal) {
+                        costModal.hide();
+                    }
+                    
+                    // ページリロードを一時的に無効化（デバッグ用）
+                    // location.reload();
                 } else {
                     alert('登録に失敗しました: ' + (result.error || '不明なエラー'));
                 }
