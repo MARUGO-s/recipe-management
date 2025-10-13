@@ -44,26 +44,48 @@ class CostCalculator:
         """
         # レシピの単位を正規化
         normalized_recipe_unit = self._normalize_unit(unit)
-        
+        decimal_quantity = Decimal(str(quantity)) # レシピの数量をDecimalに変換
+
         best_master_data = None
         
-        # 1. 完全一致を優先 (材料名, 単位, 容量)
+        # 1. 最も厳密なマッチング: 材料名、単位、容量が全て一致
+        #    ただし、レシピの数量が0の場合は容量の一致は求めない
         for master_data in self.cost_master:
             normalized_master_unit = self._normalize_unit(master_data.get('unit', ''))
+            
+            # レシピの数量が0の場合、単位が空でもマスターの単位と一致とみなす
+            unit_match = False
+            if decimal_quantity == 0 and normalized_recipe_unit == '':
+                unit_match = True # レシピの単位が空なら、マスターの単位は何でもOK
+            elif normalized_recipe_unit == normalized_master_unit:
+                unit_match = True
+            
+            capacity_match = False
+            if decimal_quantity == 0:
+                capacity_match = True # レシピの数量が0なら容量の一致は求めない
+            elif master_data.get('capacity') == decimal_quantity:
+                capacity_match = True
+
             if (master_data.get('ingredient_name') == ingredient_name and
-                normalized_master_unit == normalized_recipe_unit and
-                master_data.get('capacity') == Decimal(str(quantity))): # Exact match on capacity too
+                unit_match and
+                capacity_match):
                 best_master_data = master_data
                 break
         
-        # 2. 材料名と単位が一致するものを探す（容量は後で考慮）
+        # 2. 材料名と単位が一致するものを探す（容量は考慮しない）
         if not best_master_data:
             for master_data in self.cost_master:
                 normalized_master_unit = self._normalize_unit(master_data.get('unit', ''))
+                
+                unit_match = False
+                if decimal_quantity == 0 and normalized_recipe_unit == '':
+                    unit_match = True
+                elif normalized_recipe_unit == normalized_master_unit:
+                    unit_match = True
+
                 if (master_data.get('ingredient_name') == ingredient_name and
-                    normalized_master_unit == normalized_recipe_unit):
+                    unit_match):
                     best_master_data = master_data
-                    # ここでは容量が一致しなくても一旦採用し、後で単位変換で調整を試みる
                     break
         
         # 3. 材料名のみで部分一致（最も緩いマッチング）
@@ -75,7 +97,7 @@ class CostCalculator:
                     break
         
         if not best_master_data:
-            # print(f"警告: '{ingredient_name}' は原価表に存在しません。")
+            print(f"警告: '{ingredient_name}' は原価表に存在しません。")
             return None
 
         master_price = best_master_data['unit_price']
@@ -83,7 +105,7 @@ class CostCalculator:
         master_unit = best_master_data['unit']
         
         # 数量をDecimalに変換
-        decimal_quantity = Decimal(str(quantity))
+        # decimal_quantity = Decimal(str(quantity)) # Already done above
 
         # 単位を正規化
         # unit_r = self._normalize_unit(unit) # Already done above
@@ -179,7 +201,11 @@ class CostCalculator:
             quantity = ingredient.get('quantity')
             unit = ingredient.get('unit')
 
-            if not all([name, quantity, unit]):
+            if not name or quantity is None: # name or quantity cannot be empty/None
+                continue
+            
+            # If quantity is 0, unit can be empty. Otherwise, unit is required.
+            if quantity != 0 and not unit:
                 continue
             
             cost = self.calculate_ingredient_cost(name, quantity, unit)
