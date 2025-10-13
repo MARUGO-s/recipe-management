@@ -751,6 +751,48 @@ def debug_test_groq():
         }), 500
 
 
+@app.route("/debug/test-groq-raw", methods=['GET'])
+def debug_test_groq_raw():
+    """デバッグ用：Groqの生レスポンスを確認"""
+    try:
+        # シンプルなテスト用テキスト
+        test_ocr_text = "牛乳 250cc\n砂糖 60g"
+        
+        # Groqに直接問い合わせて生レスポンスを取得
+        prompt = f"""以下のテキストからレシピ情報を抽出し、JSON形式で出力してください。
+
+{{"recipe_name": "テストレシピ", "servings": 2, "ingredients": [{{"name": "材料名", "quantity": 数値, "unit": "単位"}}]}}
+
+テキスト: {test_ocr_text}"""
+
+        response = groq_parser.client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "あなたはJSON出力の専門家です。"},
+                {"role": "user", "content": prompt}
+            ],
+            model="llama-3.1-8b-instant",
+            temperature=0.1,
+            max_tokens=1000
+        )
+        
+        raw_response = response.choices[0].message.content.strip()
+        
+        return jsonify({
+            "success": True,
+            "test_ocr_text": test_ocr_text,
+            "groq_raw_response": raw_response,
+            "response_length": len(raw_response)
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
 @app.route("/admin/clear", methods=['POST'])
 def admin_clear():
     """データベース内容のクリア（選択式）"""
