@@ -1259,157 +1259,6 @@ def handle_text_message(event):
         print(f"⚠️ 材料検索スキップ: '{text}' (長さ: {len(text)})")
 
 
-def create_input_form_flex_message(search_term):
-    """詳細入力フォーム用のFlex Messageを作成"""
-    try:
-        contents = []
-        
-        # タイトル
-        contents.append({
-            "type": "text",
-            "text": "📝 詳細入力で材料追加",
-            "weight": "bold",
-            "size": "lg",
-            "color": "#1DB446"
-        })
-        
-        # 材料名
-        contents.append({
-            "type": "text",
-            "text": f"材料名: {search_term}",
-            "size": "md",
-            "color": "#333333",
-            "margin": "md"
-        })
-        
-        # 入力フォームの説明
-        contents.append({
-            "type": "text",
-            "text": "以下の形式で入力してください：",
-            "size": "sm",
-            "color": "#666666",
-            "margin": "md",
-            "wrap": True
-        })
-        
-        # 入力例
-        contents.append({
-            "type": "text",
-            "text": "「追加 イクラ 500円/100g」\n「追加 イクラ 3000円/kg」\n「追加 イクラ 150円/パック」",
-            "size": "sm",
-            "color": "#FF6B6B",
-            "margin": "md",
-            "wrap": True
-        })
-        
-        # 注意事項
-        contents.append({
-            "type": "text",
-            "text": "💡 価格と単位を自由に設定できます",
-            "size": "xs",
-            "color": "#999999",
-            "margin": "md"
-        })
-        
-        # Flex Messageを構築
-        flex_container = {
-            "type": "bubble",
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": contents,
-                "paddingAll": "16px"
-            }
-        }
-        
-        return flex_container
-        
-    except Exception as e:
-        print(f"入力フォームFlex Message作成エラー: {e}")
-        return None
-
-def create_quick_add_menu_flex_message(search_term):
-    """クイック追加メニュー用のFlex Messageを作成"""
-    try:
-        contents = []
-        
-        # タイトル
-        contents.append({
-            "type": "text",
-            "text": "⚡ クイック追加",
-            "weight": "bold",
-            "size": "lg",
-            "color": "#FF6B6B"
-        })
-        
-        # 材料名
-        contents.append({
-            "type": "text",
-            "text": f"材料名: {search_term}",
-            "size": "md",
-            "color": "#333333",
-            "margin": "md"
-        })
-        
-        # フッター（クイック追加ボタン）
-        footer_contents = [
-            {
-                "type": "button",
-                "style": "primary",
-                "height": "sm",
-                "action": {
-                    "type": "postback",
-                    "label": f"100円/個",
-                    "data": f"quick_add={search_term}|100|個",
-                    "displayText": f"追加 {search_term} 100円/個"
-                }
-            },
-            {
-                "type": "button",
-                "style": "primary",
-                "height": "sm",
-                "action": {
-                    "type": "postback",
-                    "label": f"200円/kg",
-                    "data": f"quick_add={search_term}|200|kg",
-                    "displayText": f"追加 {search_term} 200円/kg"
-                }
-            },
-            {
-                "type": "button",
-                "style": "secondary",
-                "height": "sm",
-                "action": {
-                    "type": "postback",
-                    "label": f"500円/パック",
-                    "data": f"quick_add={search_term}|500|パック",
-                    "displayText": f"追加 {search_term} 500円/パック"
-                }
-            }
-        ]
-        
-        # Flex Messageを構築
-        flex_container = {
-            "type": "bubble",
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": contents,
-                "paddingAll": "16px"
-            },
-            "footer": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": footer_contents,
-                "paddingAll": "8px"
-            }
-        }
-        
-        return flex_container
-        
-    except Exception as e:
-        print(f"クイック追加メニューFlex Message作成エラー: {e}")
-        return None
 
 def create_add_ingredient_flex_message(search_term):
     """新規材料追加用のFlex Messageを作成"""
@@ -1438,48 +1287,25 @@ def create_add_ingredient_flex_message(search_term):
         # 説明
         contents.append({
             "type": "text",
-            "text": "この材料は原価表に登録されていません。\n以下の形式で追加してください：",
+            "text": "この材料は原価表に登録されていません。\nボタンをタップしてフォームで追加してください。",
             "size": "sm",
             "color": "#666666",
             "margin": "md",
             "wrap": True
         })
         
-        # 例
-        contents.append({
-            "type": "text",
-            "text": "例: 「追加 トマト 100円/個」\n例: 「追加 玉ねぎ 200円/kg」",
-            "size": "sm",
-            "color": "#1DB446",
-            "margin": "md",
-            "wrap": True
-        })
-        
         # フッター（入力フォーム用ボタン）
         add_form_url = "https://recipe-management-nd00.onrender.com/ingredient/form"
-        footer_contents = [
-            {
-                "type": "button",
-                "style": "primary",
-                "height": "sm",
-                "action": {
-                    "type": "uri",
-                    "label": "📝 詳細入力で追加",
-                    "uri": add_form_url
-                }
-            },
-            {
-                "type": "button",
-                "style": "secondary",
-                "height": "sm",
-                "action": {
-                    "type": "postback",
-                    "label": "⚡ クイック追加",
-                    "data": f"quick_add_menu={search_term}",
-                    "displayText": f"クイック追加: {search_term}"
-                }
+        footer_contents = [{
+            "type": "button",
+            "style": "primary",
+            "height": "sm",
+            "action": {
+                "type": "uri",
+                "label": "📝 材料を追加",
+                "uri": add_form_url
             }
-        ]
+        }]
         
         # Flex Messageを構築
         flex_container = {
@@ -2156,73 +1982,11 @@ def handle_postback_event(event):
         
         data = event.postback.data
         
-        # クイック追加メニューの場合
-        if data.startswith("quick_add_menu="):
-            search_term = data.split("=")[1]
-            print(f"⚡ クイック追加メニュー: {search_term}")
-            
-            flex_container = create_quick_add_menu_flex_message(search_term)
-            
-            if flex_container:
-                line_bot_api.reply_message(ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[FlexMessage(
-                        alt_text=f"クイック追加: {search_term}",
-                        contents=FlexContainer.from_dict(flex_container)
-                    )]
-                ))
-            else:
-                line_bot_api.reply_message(ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text=f"クイック追加メニューの表示に失敗しました。\n「追加 {search_term} 価格/単位」で直接入力してください。")]
-                ))
-        
-        # クイック追加の場合
-        elif data.startswith("quick_add="):
-            parts = data.split("=")[1].split("|")
-            if len(parts) == 3:
-                ingredient_name = parts[0]
-                price = parts[1]
-                unit = parts[2]
-                
-                print(f"⚡ クイック追加: {ingredient_name} {price}円/{unit}")
-                
-                # クイック追加を実行
-                success = cost_master_manager.add_or_update_cost(
-                    ingredient_name=ingredient_name,
-                    capacity=1.0,
-                    unit=unit,
-                    unit_price=float(price),
-                    unit_column=unit
-                )
-                
-                if success:
-                    reply_text = f"""✅ 材料を追加しました！
-
-📋 {ingredient_name}
-【容量】1
-【単位】{unit}
-【単価】¥{price}
-
-追加完了です！"""
-                else:
-                    reply_text = f"❌ 材料の追加に失敗しました。\n「追加 {ingredient_name} {price}円/{unit}」で再試行してください。"
-                
-                line_bot_api.reply_message(ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text=reply_text)]
-                ))
-            else:
-                line_bot_api.reply_message(ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text="クイック追加のデータ形式が不正です。")]
-                ))
-        else:
-            # その他のPostbackイベント
-            line_bot_api.reply_message(ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text="未対応の操作です。")]
-            ))
+        # 現在は未対応のPostbackEvent
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text="未対応の操作です。")]
+        ))
         
     except Exception as e:
         print(f"❌ Postbackイベント処理エラー: {e}")
