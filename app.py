@@ -924,6 +924,27 @@ def edit_recipe_ingredients():
     if not recipe_data:
         return "Recipe data not found in session. Please send an image again.", 404
 
+    # 各材料の単価をcost_masterから取得してrecipe_dataに追加
+    for ingredient in recipe_data.get('ingredients', []):
+        ingredient_name = ingredient.get('name')
+        if ingredient_name:
+            # cost_masterから単価を取得
+            # cost_master_manager.get_cost_info(ingredient_name) は単一の材料名で検索するため、
+            # 複数の容量や単位を持つ材料に対応できない可能性がある。
+            # ここでは簡易的に、最も近いと思われる単価を取得する。
+            # 理想的には、name, capacity, unitで複合検索すべきだが、現在のget_cost_infoは単一のnameのみ。
+            # したがって、ここではsearch_costsを使用して、
+            # 複数の結果から最も関連性の高いものを選択するか、最初の結果を使用する。
+            
+            # 既存のcost_master_manager.get_cost_infoは単一の材料名で検索するため、
+            # ここではsearch_costsを使って、より柔軟に単価を取得する
+            search_results = cost_master_manager.search_costs(ingredient_name, limit=1)
+            if search_results:
+                # 最初の結果の単価を使用
+                ingredient['unit_price'] = search_results[0].get('unit_price')
+            else:
+                ingredient['unit_price'] = None # 見つからない場合はNone
+
     # recipe_dataは辞書なので、テンプレートに渡す前にオブジェクトのようにアクセスできるようにする
     class RecipeData:
         def __init__(self, data):
@@ -2689,14 +2710,32 @@ def save_edited_ingredients():
             capacity = float(request.form.get(f'ingredients[{i}][capacity]', 1))
             capacity_unit = request.form.get(f'ingredients[{i}][capacity_unit]', '個')
             
+            unit_price = None
+            if unit_price_str:
+                try:
+                    unit_price = float(unit_price_str)
+                except ValueError:
+                    pass # 無効な単価は無視
+
             if name:
                 edited_ingredients.append({
                     'name': name,
                     'quantity': quantity,
                     'unit': unit,
                     'capacity': capacity,
-                    'capacity_unit': capacity_unit
+                    'capacity_unit': capacity_unit,
+                    'unit_price': unit_price # 単価も追加
                 })
+
+                # 単価が入力されている場合、cost_masterを更新または登録
+                if unit_price is not None:
+                    cost_master_manager.add_or_update_cost(
+                        ingredient_name=name,
+                        capacity=capacity,
+                        unit=unit,
+                        unit_price=unit_price,
+                        unit_column="" # フォームからの追加では使用しない
+                    )
             i += 1
 
         # ユーザーセッションのレシピデータを更新
