@@ -344,46 +344,7 @@
                 <tr>
                     <td class="ingredient-name">{{ ingredient.ingredient_name }}</td>
                     <td class="ingredient-quantity">
-                        {% set display_quantity = ingredient.quantity|float %}
-                        {% set display_unit = ingredient.unit %}
-                        
-                        {# 日本的な単位を標準単位に変換して表示 #}
-                        {% if ingredient.unit in ['大さじ', '小さじ', 'カップ', '合'] %}
-                            {% set converted_qty = display_quantity %}
-                            {% if ingredient.unit == '大さじ' %}
-                                {% set converted_qty = display_quantity * 15 %}
-                                {% set display_unit = 'ml' %}
-                            {% elif ingredient.unit == '小さじ' %}
-                                {% set converted_qty = display_quantity * 5 %}
-                                {% set display_unit = 'ml' %}
-                            {% elif ingredient.unit == 'カップ' %}
-                                {% set converted_qty = display_quantity * 200 %}
-                                {% set display_unit = 'ml' %}
-                            {% elif ingredient.unit == '合' %}
-                                {% set converted_qty = display_quantity * 180 %}
-                                {% set display_unit = 'ml' %}
-                            {% endif %}
-                            
-                            {# 材料に応じて重量に変換 #}
-                            {% if ingredient.ingredient_name and ('油' in ingredient.ingredient_name or 'オリーブ' in ingredient.ingredient_name) %}
-                                {% set converted_qty = converted_qty * 0.92 %}
-                                {% set display_unit = 'g' %}
-                            {% elif ingredient.ingredient_name and '牛乳' in ingredient.ingredient_name %}
-                                {% set converted_qty = converted_qty * 1.03 %}
-                                {% set display_unit = 'g' %}
-                            {% elif ingredient.ingredient_name and '砂糖' in ingredient.ingredient_name %}
-                                {% set converted_qty = converted_qty * 0.8 %}
-                                {% set display_unit = 'g' %}
-                            {% elif ingredient.ingredient_name and '塩' in ingredient.ingredient_name %}
-                                {% set converted_qty = converted_qty * 1.2 %}
-                                {% set display_unit = 'g' %}
-                            {% endif %}
-                            
-                            {{ "%.0f"|format(converted_qty) }}{{ display_unit }}
-                            <small class="text-muted">({{ ingredient.quantity }}{{ ingredient.unit }})</small>
-                        {% else %}
-                            {{ ingredient.quantity }}{{ ingredient.unit }}
-                        {% endif %}
+                        {{ ingredient.quantity }}{{ ingredient.unit }}
                     </td>
                     <td class="{% if ingredient.cost and ingredient.cost > 0 %}cost{% else %}no-cost{% endif %}">
                         {% if ingredient.cost and ingredient.cost > 0 %}

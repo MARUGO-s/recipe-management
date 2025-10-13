@@ -2968,33 +2968,33 @@ def update_ingredient_cost():
         except (ValueError, TypeError) as e:
             return jsonify({"success": False, "error": f"数値の形式が正しくありません: {str(e)}"}), 400
         
-        # 単位変換を適用（日本的な単位を標準単位に変換）
-        converted_quantity, converted_unit = UnitConverter.convert_quantity(
-            quantity, unit, ingredient_name
-        )
+        # 単位変換は適用しない（ユーザーの入力をそのまま使用）
+        # converted_quantity, converted_unit = UnitConverter.convert_quantity(
+        #     quantity, unit, ingredient_name
+        # )
         
-        # 原価を計算 (単価 × 変換後の分量 / 容量)
-        cost = unit_price * converted_quantity / capacity
+        # 原価を計算 (単価 × 分量 / 容量)
+        cost = unit_price * quantity / capacity
         
-        # 材料の原価、分量、単位を更新（変換後の値を使用）
+        # 材料の原価、分量、単位を更新（ユーザー入力の値をそのまま使用）
         update_data = {
             'cost': cost,
-            'quantity': converted_quantity,
-            'unit': converted_unit
+            'quantity': quantity,
+            'unit': unit
         }
         
         supabase.table('ingredients').update(update_data).eq('id', ingredient_id).execute()
         
-        # cost_masterに材料情報を追加/更新（変換後の単位を使用）
+        # cost_masterに材料情報を追加/更新（ユーザー入力の値をそのまま使用）
         try:
             cost_master_manager.add_or_update_cost(
                 ingredient_name=ingredient_name,
                 capacity=capacity,
-                unit=converted_unit,
+                unit=unit,
                 unit_price=unit_price,
-                unit_column=converted_unit
+                unit_column=unit
             )
-            print(f"✅ cost_masterに材料を追加/更新: {ingredient_name} ({converted_quantity}{converted_unit})")
+            print(f"✅ cost_masterに材料を追加/更新: {ingredient_name} ({quantity}{unit})")
         except Exception as e:
             print(f"⚠️ cost_master更新エラー: {e}")
             # cost_masterの更新に失敗しても材料の原価更新は続行
@@ -3023,11 +3023,8 @@ def update_ingredient_cost():
             "success": True,
             "message": "原価を更新しました",
             "cost": cost,
-            "quantity": converted_quantity,
-            "unit": converted_unit,
-            "conversion_info": UnitConverter.get_conversion_info(
-                quantity, unit, converted_quantity, converted_unit
-            )
+            "quantity": quantity,
+            "unit": unit
         })
         
     except Exception as e:
