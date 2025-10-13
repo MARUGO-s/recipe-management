@@ -2947,19 +2947,28 @@ def update_ingredient_cost():
         unit = data.get('unit')  # 新しい単位
         new_ingredient_name = data.get('ingredient_name')  # 新しい材料名
         
+        # デバッグログ
+        print(f"🔍 受信データ: quantity={quantity}, unit={unit}, unit_price={unit_price}, capacity={capacity}")
+        
         if not ingredient_id or not unit_price or not ingredient_name:
             return jsonify({"success": False, "error": "必要なパラメータが不足しています"}), 400
         
-        # 分量と単位が提供されている場合はそれを使用、そうでなければ既存の値を取得
-        if quantity is None or unit is None:
+        # 分量と単位が提供されていない場合のみ既存の値を取得
+        if quantity is None or quantity == '':
             ingredient_response = supabase.table('ingredients').select('quantity, unit').eq('id', ingredient_id).execute()
             
             if not ingredient_response.data:
                 return jsonify({"success": False, "error": "材料が見つかりません"}), 404
             
             ingredient_data = ingredient_response.data[0]
-            quantity = quantity or ingredient_data['quantity']
-            unit = unit or ingredient_data['unit']
+            quantity = ingredient_data['quantity']
+        
+        if unit is None or unit == '':
+            if 'ingredient_response' not in locals():
+                ingredient_response = supabase.table('ingredients').select('quantity, unit').eq('id', ingredient_id).execute()
+                if ingredient_response.data:
+                    ingredient_data = ingredient_response.data[0]
+            unit = ingredient_data.get('unit', '')
         
         # 数値の検証（分量は文字列のまま保持、計算用にのみ数値変換）
         try:
@@ -2973,7 +2982,12 @@ def update_ingredient_cost():
             
             unit_price = float(unit_price)
             capacity = float(capacity)
+            
+            # デバッグログ
+            print(f"🔍 解析後: quantity_value={quantity_value}, quantity_unit={quantity_unit}")
+            print(f"🔍 計算用: unit_price={unit_price}, capacity={capacity}")
         except (ValueError, TypeError) as e:
+            print(f"❌ 数値変換エラー: {e}")
             return jsonify({"success": False, "error": f"数値の形式が正しくありません: {str(e)}"}), 400
         
         # 原価を計算 (単価 × 分量の数値 / 容量)
