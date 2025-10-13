@@ -275,7 +275,8 @@
                         </div>
                         <div class="mb-3">
                             <label for="ingredientQuantity" class="form-label">分量</label>
-                            <input type="text" class="form-control" id="ingredientQuantity" readonly>
+                            <input type="text" class="form-control" id="ingredientQuantity" name="quantity">
+                            <div class="form-text">分量と単位を入力してください（例：2.0大さじ）</div>
                         </div>
                         <div class="mb-3">
                             <label for="unitPrice" class="form-label">単価 (円)</label>
@@ -327,11 +328,27 @@
             const capacity = document.getElementById('capacity').value;
             const capacityUnit = document.getElementById('capacityUnit').value;
             const ingredientName = document.getElementById('ingredientName').value;
+            const quantityInput = document.getElementById('ingredientQuantity').value;
             
             if (!unitPrice || unitPrice <= 0) {
                 alert('正しい単価を入力してください');
                 return;
             }
+            
+            if (!quantityInput.trim()) {
+                alert('分量を入力してください');
+                return;
+            }
+            
+            // 分量を数値と単位に分離
+            const quantityMatch = quantityInput.match(/^(\d+(?:\.\d+)?)\s*(.+)$/);
+            if (!quantityMatch) {
+                alert('分量の形式が正しくありません（例：2.0大さじ）');
+                return;
+            }
+            
+            const quantity = parseFloat(quantityMatch[1]);
+            const unit = quantityMatch[2];
             
             try {
                 const response = await fetch('/api/update-ingredient-cost', {
@@ -344,7 +361,9 @@
                         unit_price: parseFloat(unitPrice),
                         capacity: parseFloat(capacity),
                         capacity_unit: capacityUnit,
-                        ingredient_name: ingredientName
+                        ingredient_name: ingredientName,
+                        quantity: quantity,
+                        unit: unit
                     })
                 });
                 

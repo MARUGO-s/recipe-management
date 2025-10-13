@@ -2942,27 +2942,42 @@ def update_ingredient_cost():
         capacity = data.get('capacity', 1)
         capacity_unit = data.get('capacity_unit', '個')
         ingredient_name = data.get('ingredient_name')
+        quantity = data.get('quantity')  # 新しい分量
+        unit = data.get('unit')  # 新しい単位
         
         if not ingredient_id or not unit_price or not ingredient_name:
             return jsonify({"success": False, "error": "必要なパラメータが不足しています"}), 400
         
-        # 材料の分量を取得
-        ingredient_response = supabase.table('ingredients').select('quantity, unit').eq('id', ingredient_id).execute()
+        # 分量と単位が提供されている場合はそれを使用、そうでなければ既存の値を取得
+        if quantity is None or unit is None:
+            ingredient_response = supabase.table('ingredients').select('quantity, unit').eq('id', ingredient_id).execute()
+            
+            if not ingredient_response.data:
+                return jsonify({"success": False, "error": "材料が見つかりません"}), 404
+            
+            ingredient_data = ingredient_response.data[0]
+            quantity = quantity or ingredient_data['quantity']
+            unit = unit or ingredient_data['unit']
         
-        if not ingredient_response.data:
-            return jsonify({"success": False, "error": "材料が見つかりません"}), 404
-        
-        ingredient_data = ingredient_response.data[0]
-        quantity = ingredient_data['quantity']
-        unit = ingredient_data['unit']
+        # 数値の検証
+        try:
+            quantity = float(quantity)
+            unit_price = float(unit_price)
+            capacity = float(capacity)
+        except (ValueError, TypeError) as e:
+            return jsonify({"success": False, "error": f"数値の形式が正しくありません: {str(e)}"}), 400
         
         # 原価を計算 (単価 × 分量 / 容量)
         cost = unit_price * quantity / capacity
         
-        # 材料の原価を更新
-        supabase.table('ingredients').update({
-            'cost': cost
-        }).eq('id', ingredient_id).execute()
+        # 材料の原価、分量、単位を更新
+        update_data = {
+            'cost': cost,
+            'quantity': quantity,
+            'unit': unit
+        }
+        
+        supabase.table('ingredients').update(update_data).eq('id', ingredient_id).execute()
         
         # cost_masterに材料情報を追加/更新
         try:
@@ -2979,32 +2994,38 @@ def update_ingredient_cost():
             # cost_masterの更新に失敗しても材料の原価更新は続行
         
         # レシピの合計原価を再計算
-        recipe_response = supabase.table('ingredients').select('recipe_id').eq('id', ingredient_id).execute()
-        if recipe_response.data:
-            recipe_id = recipe_response.data[0]['recipe_id']
-            
-            # レシピの全材料の原価を合計
-            ingredients_response = supabase.table('ingredients').select('cost').eq('recipe_id', recipe_id).execute()
-            total_cost = sum(ingredient.get('cost', 0) for ingredient in ingredients_response.data)
-            
-            # レシピの合計原価を更新
-            supabase.table('recipes').update({
-                'total_cost': total_cost
-            }).eq('id', recipe_id).execute()
-            
-            print(f"✅ レシピの合計原価を更新: ¥{total_cost:.2f}")
+        try:
+            recipe_response = supabase.table('ingredients').select('recipe_id').eq('id', ingredient_id).execute()
+            if recipe_response.data:
+                recipe_id = recipe_response.data[0]['recipe_id']
+                
+                # レシピの全材料の原価を合計
+                ingredients_response = supabase.table('ingredients').select('cost').eq('recipe_id', recipe_id).execute()
+                total_cost = sum(float(ingredient.get('cost', 0)) if ingredient.get('cost') is not None else 0 for ingredient in ingredients_response.data)
+                
+                # レシピの合計原価を更新
+                supabase.table('recipes').update({
+                    'total_cost': total_cost
+                }).eq('id', recipe_id).execute()
+                
+                print(f"✅ レシピの合計原価を更新: ¥{total_cost:.2f}")
+        except Exception as e:
+            print(f"⚠️ 合計原価計算エラー: {e}")
+            # 合計原価計算に失敗しても材料更新は成功とする
         
         return jsonify({
             "success": True,
             "message": "原価を更新しました",
-            "cost": cost
+            "cost": cost,
+            "quantity": quantity,
+            "unit": unit
         })
         
     except Exception as e:
         print(f"❌ 原価更新エラー: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": f"サーバーエラー: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
