@@ -580,7 +580,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                             <tbody>
                                                 ${data.recipes?.map(item => `
                                                     <tr>
-                                                        <td>${item.dish_name || '-'}</td>
+                                                        <td>${item.recipe_name || '-'}</td>
                                                         <td>${item.servings || 0}人前</td>
                                                         <td>${new Date(item.created_at).toLocaleDateString()}</td>
                                                     </tr>
