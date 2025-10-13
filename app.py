@@ -2959,7 +2959,7 @@ def update_ingredient_cost():
         new_ingredient_name = data.get('ingredient_name')  # 新しい材料名
         
         # デバッグログ
-        print(f"🔍 受信データ: quantity={quantity}, unit={unit}, unit_price={unit_price}, capacity={capacity}")
+        print(f"🔍 受信データ: quantity={quantity}, unit={unit}, unit_price={unit_price}, capacity={capacity}, capacity_unit={capacity_unit}")
         
         if not ingredient_id or not unit_price or not ingredient_name:
             return jsonify({"success": False, "error": "必要なパラメータが不足しています"}), 400
@@ -3025,12 +3025,12 @@ def update_ingredient_cost():
         try:
             cost_master_manager.add_or_update_cost(
                 ingredient_name=ingredient_name,
-                capacity=capacity,
-                unit=quantity_unit,
-                unit_price=unit_price,
-                unit_column=quantity_unit
+                capacity=capacity,              # ユーザー入力の容量（1000）
+                unit=capacity_unit,             # ユーザー入力の容量単位（g）
+                unit_price=unit_price,          # ユーザー入力の単価（350）
+                unit_column=capacity_unit       # ユーザー入力の容量単位（g）
             )
-            print(f"✅ cost_masterに材料を追加/更新: {ingredient_name} ({quantity_value}{quantity_unit})")
+            print(f"✅ cost_masterに材料を追加/更新: {ingredient_name} (容量:{capacity}{capacity_unit}, 単価:{unit_price}円)")
         except Exception as e:
             print(f"⚠️ cost_master更新エラー: {e}")
             # cost_masterの更新に失敗しても材料の原価更新は続行
