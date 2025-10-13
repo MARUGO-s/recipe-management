@@ -886,74 +886,64 @@ def handle_image_message(event):
 
 
         # 画像の取得
-
-
         message_id = event.message.id
-
-
-        message_content = line_bot_blob_api.get_message_content(message_id)
-
-
+        print(f"🔍 画像メッセージID: {message_id}")
         
-
-
-        # 画像データを取得
-        try:
-            image_bytes = b''
-            
-            print(f"🔍 画像データ取得開始: {type(message_content)}")
-            
-            # LINE Bot SDK v3の正しい画像取得方法
+        # LINE Bot SDK v3では get_message_content が直接bytesを返す
+        image_bytes = line_bot_blob_api.get_message_content(message_id)
+        print(f"🔍 取得データ型: {type(image_bytes)}")
+        
+        # bytesでない場合の処理
+        if not isinstance(image_bytes, bytes):
+            print(f"⚠️ 予期しないデータ型です。変換を試みます...")
             try:
-                # ストリーミング方式で取得
-                for chunk in message_content.iter_content(chunk_size=8192):
-                    if chunk:
-                        image_bytes += chunk
-                print(f"✅ ストリーミング方式で取得成功: {len(image_bytes)} bytes")
-                
-            except AttributeError:
-                # iter_contentがない場合は別の方法を試す
-                print("⚠️ iter_contentメソッドが見つかりません。別の方法を試します。")
-                
-                try:
-                    # contentプロパティを直接取得
-                    if hasattr(message_content, 'content'):
-                        image_bytes = message_content.content
-                        print(f"✅ contentプロパティで取得成功: {len(image_bytes)} bytes")
-                    else:
-                        # その他の属性を試す
-                        for attr in ['data', 'body', 'raw']:
-                            if hasattr(message_content, attr):
-                                content = getattr(message_content, attr)
-                                if isinstance(content, bytes):
-                                    image_bytes = content
-                                    print(f"✅ {attr}プロパティで取得成功: {len(image_bytes)} bytes")
-                                    break
-                                    
-                        if not image_bytes:
-                            raise ValueError("画像データを取得できませんでした")
-                            
-                except Exception as e2:
-                    print(f"❌ 代替方法でも失敗: {e2}")
-                    raise e2
-                
-            if len(image_bytes) == 0:
-                raise ValueError("画像データが空です")
-                
-            print(f"✅ 画像データ取得成功: {len(image_bytes)} bytes")
-            
-        except Exception as e:
-            print(f"❌ 画像データ取得エラー: {e}")
-            print(f"message_content type: {type(message_content)}")
-            if hasattr(message_content, '__dict__'):
-                print(f"message_content attributes: {message_content.__dict__}")
-            import traceback
-            traceback.print_exc()
+                # iter_contentメソッドがある場合
+                if hasattr(image_bytes, 'iter_content'):
+                    print("📥 ストリーミング方式で取得します...")
+                    temp_bytes = b''
+                    for chunk in image_bytes.iter_content(chunk_size=8192):
+                        if chunk:
+                            temp_bytes += chunk
+                    image_bytes = temp_bytes
+                    print(f"✅ ストリーミング取得成功: {len(image_bytes)} bytes")
+                # contentプロパティがある場合
+                elif hasattr(image_bytes, 'content'):
+                    print("📥 contentプロパティから取得します...")
+                    image_bytes = image_bytes.content
+                    print(f"✅ content取得成功: {len(image_bytes)} bytes")
+                # read()メソッドがある場合
+                elif hasattr(image_bytes, 'read'):
+                    print("📥 read()メソッドで取得します...")
+                    image_bytes = image_bytes.read()
+                    print(f"✅ read()取得成功: {len(image_bytes)} bytes")
+                else:
+                    print(f"❌ 画像データの変換方法が見つかりません")
+                    print(f"利用可能なメソッド: {[m for m in dir(image_bytes) if not m.startswith('_')]}")
+                    line_bot_api.reply_message(ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(text="画像の取得に失敗しました。データ形式が不正です。")]
+                    ))
+                    return
+            except Exception as e:
+                print(f"❌ 画像データ変換エラー: {e}")
+                import traceback
+                traceback.print_exc()
+                line_bot_api.reply_message(ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="画像の取得に失敗しました。")]
+                ))
+                return
+        
+        # 画像データの検証
+        if not image_bytes or len(image_bytes) == 0:
+            print(f"❌ 画像データが空です")
             line_bot_api.reply_message(ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text="画像の取得に失敗しました。")]
+                messages=[TextMessage(text="画像データが空です。")]
             ))
             return
+            
+        print(f"✅ 画像データ取得成功: {len(image_bytes)} bytes")
 
 
         
