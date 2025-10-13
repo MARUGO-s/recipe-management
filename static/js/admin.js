@@ -153,8 +153,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function handleFile(file) {
         // CSVファイルかチェック
-        if (!file.name.toLowerCase().endsWith('.csv')) {
-            showStatus('error', 'CSVファイルのみアップロード可能です。');
+        if (!file.name.toLowerCase().match(/\.(csv|xlsx|xls)$/)) {
+            showStatus('error', 'CSV/Excelファイルのみアップロード可能です。');
             return;
         }
 
@@ -167,9 +167,15 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedFile = file;
         uploadBtn.disabled = false;
         
+        // ファイルアイコンの選択
+        let fileIcon = 'fas fa-file-csv';
+        if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+            fileIcon = 'fas fa-file-excel';
+        }
+        
         // アップロードエリアの表示を更新
         uploadArea.innerHTML = `
-            <i class="fas fa-file-csv fa-3x text-success mb-3"></i>
+            <i class="${fileIcon} fa-3x text-success mb-3"></i>
             <h5 class="text-success">${file.name}</h5>
             <p class="text-muted">ファイルサイズ: ${formatFileSize(file.size)}</p>
             <small class="text-info">クリックしてファイルを変更</small>

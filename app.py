@@ -7,6 +7,7 @@ import requests
 import csv
 import io
 import re
+import pandas as pd
 from datetime import datetime
 from unit_converter import UnitConverter
 from flask import Flask, request, abort, render_template, jsonify, send_file, redirect, url_for, flash
@@ -117,6 +118,30 @@ try:
 except Exception as e:
     print(f"原価表の初期読み込みでエラーが発生しました: {e}")
 
+
+def read_file_data(file):
+    """CSV/Excelファイルを読み込んでDataFrameを返す"""
+    try:
+        filename = file.filename.lower()
+        file.seek(0)  # ファイルポインタを先頭に戻す
+        
+        if filename.endswith('.csv'):
+            # CSVファイルの読み込み
+            csv_data = file.read().decode('utf-8-sig')
+            df = pd.read_csv(io.StringIO(csv_data))
+            print(f"🔍 CSV file loaded: {len(df)} rows")
+        elif filename.endswith(('.xlsx', '.xls')):
+            # Excelファイルの読み込み
+            file.seek(0)
+            df = pd.read_excel(file, engine='openpyxl' if filename.endswith('.xlsx') else 'xlrd')
+            print(f"🔍 Excel file loaded: {len(df)} rows")
+        else:
+            raise ValueError(f"Unsupported file format: {filename}")
+        
+        return df
+    except Exception as e:
+        print(f"❌ File reading error: {e}")
+        raise
 
 def extract_capacity_from_spec(spec_text, product_name="", unit_column=""):
     """
@@ -229,25 +254,22 @@ def admin_upload():
         if file.filename == '':
             return jsonify({"error": "ファイルが選択されていません"}), 400
         
-        if not file.filename.lower().endswith('.csv'):
-            return jsonify({"error": "CSVファイルのみアップロード可能です"}), 400
+        if not any(file.filename.lower().endswith(ext) for ext in ['.csv', '.xlsx', '.xls']):
+            return jsonify({"error": "CSV/Excelファイルのみアップロード可能です"}), 400
         
-        csv_data = file.read().decode('utf-8-sig')
-        csv_reader = csv.DictReader(io.StringIO(csv_data))
+        # ファイルを読み込み
+        df = read_file_data(file)
         
         # 列名の自動検出
-        fieldnames = csv_reader.fieldnames
-        print(f"🔍 CSV columns: {fieldnames}")
-        print(f"🔍 CSV data preview (first 3 rows):")
-        preview_rows = []
-        for i, row in enumerate(csv_reader):
-            if i < 3:
-                preview_rows.append(row)
-                print(f"  Row {i+1}: {row}")
-            else:
-                break
-        # CSV readerをリセット
-        csv_reader = csv.DictReader(io.StringIO(csv_data))
+        fieldnames = df.columns.tolist()
+        print(f"🔍 File columns: {fieldnames}")
+        print(f"🔍 File data preview (first 3 rows):")
+        for i in range(min(3, len(df))):
+            row_data = df.iloc[i].to_dict()
+            print(f"  Row {i+1}: {row_data}")
+        
+        # DataFrameを辞書のリストに変換
+        data_rows = df.to_dict('records')
         
         # 列名マッピング（テンプレート形式を優先）
         column_mapping = {}
@@ -286,7 +308,7 @@ def admin_upload():
         processed_count = 0
         skipped_count = 0
         
-        for row_num, row in enumerate(csv_reader, 1):
+        for row_num, row in enumerate(data_rows, 1):
             try:
                 # データの検証と変換
                 ingredient_name = row.get(column_mapping.get('ingredient_name', ''), '').strip()
