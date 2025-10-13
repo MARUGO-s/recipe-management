@@ -697,6 +697,55 @@ def admin_export():
         print(f"エクスポートエラー: {e}")
         return jsonify({"error": "エクスポートに失敗しました"}), 500
 
+@app.route("/debug/logs", methods=['GET'])
+def debug_logs():
+    """デバッグ用：最新のログを表示"""
+    try:
+        # 最近のログをファイルから読み取り（簡易版）
+        import os
+        log_info = {
+            "timestamp": datetime.now().isoformat(),
+            "environment": os.getenv('RENDER', 'local'),
+            "message": "デバッグエンドポイントにアクセスしました"
+        }
+        return jsonify(log_info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/debug/test-groq", methods=['GET'])
+def debug_test_groq():
+    """デバッグ用：Groqの動作テスト"""
+    try:
+        # テスト用のOCRテキスト
+        test_ocr_text = """牛乳.
+.250cc
+バニラのさやl
+.1/4本
+卵黄
+.3個
+砂糖
+.60g
+バニラエッセンス ..
+適量"""
+        
+        # Groqで解析
+        recipe_data = groq_parser.parse_recipe_text(test_ocr_text)
+        
+        return jsonify({
+            "success": True,
+            "test_ocr_text": test_ocr_text,
+            "parsed_recipe": recipe_data
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
 @app.route("/admin/clear", methods=['POST'])
 def admin_clear():
     """データベース内容のクリア（選択式）"""
