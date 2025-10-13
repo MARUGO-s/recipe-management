@@ -459,10 +459,26 @@ def admin_upload_transaction():
             return jsonify({"error": "CSVファイルのみアップロード可能です"}), 400
 
         try:
-            csv_data = file.read().decode('cp932')
-        except UnicodeDecodeError:
-            file.seek(0)
+            # まずUTF-8で試行
             csv_data = file.read().decode('utf-8-sig')
+            print(f"🔍 CSV file decoded as UTF-8: {len(csv_data)} characters")
+        except UnicodeDecodeError as e:
+            print(f"🔍 UTF-8 decode failed: {e}")
+            try:
+                # Shift-JISで試行
+                file.seek(0)
+                csv_data = file.read().decode('shift_jis')
+                print(f"🔍 CSV file decoded as Shift-JIS: {len(csv_data)} characters")
+            except UnicodeDecodeError as e2:
+                print(f"🔍 Shift-JIS decode failed: {e2}")
+                try:
+                    # CP932で試行
+                    file.seek(0)
+                    csv_data = file.read().decode('cp932')
+                    print(f"🔍 CSV file decoded as CP932: {len(csv_data)} characters")
+                except UnicodeDecodeError as e3:
+                    print(f"❌ All encoding attempts failed: {e3}")
+                    raise ValueError(f"ファイルのエンコーディングが判別できません。UTF-8、Shift-JIS、CP932を試行しましたが、すべて失敗しました。")
 
         csv_reader = csv.reader(io.StringIO(csv_data))
         
