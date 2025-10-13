@@ -612,7 +612,7 @@
 
         function openCostModal(ingredientName, quantity, unit, ingredientId, existingCost = null) {
             document.getElementById('ingredientName').value = ingredientName;
-            document.getElementById('ingredientQuantity').value = quantity + unit;
+            document.getElementById('ingredientQuantity').value = quantity.toString() + (unit ? unit.toString() : '');
             document.getElementById('ingredientId').value = ingredientId;
             
             // 既存の原価がある場合は表示
@@ -655,15 +655,20 @@
                 return;
             }
             
-            // 分量を数値と単位に分離
-            const quantityMatch = quantityInput.match(/^(\d+(?:\.\d+)?)\s*(.+)$/);
+            // 分量を数値と単位に分離（デバッグログ追加）
+            console.log('🔍 分量入力:', quantityInput);
+            
+            // より厳密な正規表現で数値と単位を分離
+            const quantityMatch = quantityInput.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]*)$/);
             if (!quantityMatch) {
-                alert('分量の形式が正しくありません（例：2.0大さじ）');
+                alert('分量の形式が正しくありません（例：150g、2個）');
                 return;
             }
             
             const quantity = parseFloat(quantityMatch[1]);
-            const unit = quantityMatch[2];
+            const unit = quantityMatch[2] || '';
+            
+            console.log('🔍 分離結果:', { quantity, unit });
             
             try {
                 const response = await fetch('/api/update-ingredient-cost', {

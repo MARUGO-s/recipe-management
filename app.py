@@ -2983,13 +2983,16 @@ def update_ingredient_cost():
         
         # 数値の検証（分量は文字列のまま保持、計算用にのみ数値変換）
         try:
-            # 分量から数値と単位を抽出
-            quantity_match = re.match(r'^(\d+(?:\.\d+)?)\s*(.*)$', str(quantity))
+            # 分量から数値と単位を抽出（より厳密な正規表現）
+            quantity_match = re.match(r'^(\d+(?:\.\d+)?)\s*([a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]*)$', str(quantity))
             if not quantity_match:
                 return jsonify({"success": False, "error": "分量の形式が正しくありません"}), 400
             
             quantity_value = float(quantity_match.group(1))  # 計算用の数値
             quantity_unit = quantity_match.group(2) or unit  # 単位
+            
+            # デバッグログ
+            print(f"🔍 正規表現解析: '{quantity}' → 数値:{quantity_value}, 単位:'{quantity_unit}'")
             
             unit_price = float(unit_price)
             capacity = float(capacity)
