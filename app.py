@@ -1869,33 +1869,67 @@ def _format_ocr_text_for_display(ocr_text):
     # 改行で分割
     lines = ocr_text.split('\n')
     formatted_lines = []
+    current_ingredient = ""
+    current_quantity = ""
     
-    for line in lines:
-        line = line.strip()
-        if line:
-            # 材料と分量を分離して整理
-            if '.' in line and any(char.isdigit() for char in line):
-                # 分量が含まれている行
-                parts = line.split('.')
-                if len(parts) >= 2:
-                    ingredient = parts[0].strip()
-                    quantity = '.'.join(parts[1:]).strip()
-                    if ingredient and quantity:
-                        formatted_lines.append(f"• {ingredient}: {quantity}")
-                    else:
-                        formatted_lines.append(f"• {line}")
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        if not line:
+            i += 1
+            continue
+            
+        # 材料名の可能性をチェック（文字が多く、数字が少ない）
+        if (len(line) > 0 and 
+            not any(char.isdigit() for char in line) and 
+            '.' not in line and
+            not line.startswith('.') and
+            line not in ['cc', 'g', 'ml', '個', '本', '玉', '丁', '袋', '大さじ', '小さじ', 'カップ', '適量']):
+            
+            # 材料名として認識
+            current_ingredient = line
+            
+            # 次の行をチェックして分量を探す
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if (next_line.startswith('.') or 
+                    any(char.isdigit() for char in next_line) or
+                    next_line in ['cc', 'g', 'ml', '個', '本', '玉', '丁', '袋', '大さじ', '小さじ', 'カップ', '適量']):
+                    current_quantity = next_line.lstrip('.')
+                    i += 2  # 材料名と分量の両方を処理
+                else:
+                    current_quantity = ""
+                    i += 1
+            else:
+                current_quantity = ""
+                i += 1
+                
+            # 一行で表示
+            if current_ingredient and current_quantity:
+                formatted_lines.append(f"• {current_ingredient}: {current_quantity}")
+            elif current_ingredient:
+                formatted_lines.append(f"• {current_ingredient}")
+                
+        else:
+            # 分量だけの行またはその他の行
+            if line.startswith('.') or any(char.isdigit() for char in line):
+                if current_ingredient:
+                    quantity = line.lstrip('.')
+                    formatted_lines.append(f"• {current_ingredient}: {quantity}")
+                    current_ingredient = ""
                 else:
                     formatted_lines.append(f"• {line}")
             else:
-                # 通常の行
                 formatted_lines.append(f"• {line}")
+            i += 1
     
-    # 最大20行まで表示
-    display_lines = formatted_lines[:20]
+    # 最大15行まで表示
+    display_lines = formatted_lines[:15]
     result = '\n'.join(display_lines)
     
-    if len(formatted_lines) > 20:
-        result += f"\n... 他{len(formatted_lines) - 20}行"
+    if len(formatted_lines) > 15:
+        result += f"\n... 他{len(formatted_lines) - 15}行"
     
     return result
 
