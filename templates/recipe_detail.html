@@ -123,12 +123,44 @@
             color: #e0e0e0;
             transform: translateY(-1px);
         }
-        .section-title {
-            color: #64b5f6;
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 15px;
-        }
+             .section-title {
+                 color: #64b5f6;
+                 font-size: 1.1rem;
+                 font-weight: 600;
+                 margin-bottom: 15px;
+                 display: flex;
+                 justify-content: space-between;
+                 align-items: center;
+             }
+             .servings-selector {
+                 display: flex;
+                 align-items: center;
+                 gap: 8px;
+             }
+             .servings-input {
+                 width: 60px;
+                 text-align: center;
+                 font-size: 0.9rem;
+             }
+             .servings-text {
+                 color: #b0b0b0;
+                 font-size: 0.9rem;
+             }
+             .action-buttons {
+                 display: flex;
+                 gap: 8px;
+             }
+             .btn-outline-light {
+                 border-color: rgba(255, 255, 255, 0.3);
+                 color: #e0e0e0;
+                 background: transparent;
+                 transition: all 0.3s ease;
+             }
+             .btn-outline-light:hover {
+                 background: rgba(255, 255, 255, 0.1);
+                 border-color: rgba(255, 255, 255, 0.5);
+                 color: #ffffff;
+             }
         .modal-content {
             background: rgba(30, 30, 46, 0.95);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -197,13 +229,29 @@
             background: rgba(60, 60, 80, 0.9);
             color: #e0e0e0;
         }
-        @media (max-width: 576px) {
-            body { padding: 10px; }
-            .container { padding: 15px; }
-            .recipe-title { font-size: 1.3rem; }
-            .ingredients-table th,
-            .ingredients-table td { padding: 4px 8px; font-size: 0.8rem; }
-        }
+             @media (max-width: 576px) {
+                 body { padding: 10px; }
+                 .container { padding: 15px; }
+                 .recipe-title { font-size: 1.3rem; }
+                 .ingredients-table th,
+                 .ingredients-table td { padding: 4px 8px; font-size: 0.8rem; }
+                 .section-title {
+                     flex-direction: column;
+                     align-items: flex-start;
+                     gap: 10px;
+                 }
+                 .action-buttons {
+                     align-self: flex-end;
+                 }
+                 .servings-selector {
+                     flex-direction: column;
+                     align-items: flex-start;
+                     gap: 5px;
+                 }
+                 .servings-input {
+                     width: 80px;
+                 }
+             }
     </style>
 </head>
 <body>
@@ -212,14 +260,30 @@
             ← 戻る
         </a>
         
-        <div class="header">
-            <div class="recipe-title">{{ recipe.recipe_name }}</div>
-            <div class="recipe-meta">
-                {{ recipe.servings }}人前 • {{ recipe.created_at.split('T')[0] }}
+            <div class="header">
+                <div class="recipe-title">{{ recipe.recipe_name }}</div>
+                <div class="recipe-meta">
+                    <div class="servings-selector">
+                        <label for="servings-input" class="form-label">人数:</label>
+                        <input type="number" id="servings-input" class="form-control servings-input" 
+                               value="{{ recipe.servings }}" min="1" max="20">
+                        <span class="servings-text">人前</span>
+                    </div>
+                    • {{ recipe.created_at.split('T')[0] }}
+                </div>
+            </div>
+
+        <div class="section-title">
+            材料
+            <div class="action-buttons">
+                <button class="btn btn-outline-light btn-sm me-2" onclick="printRecipe()">
+                    <i class="fas fa-print me-1"></i>印刷
+                </button>
+                <button class="btn btn-outline-light btn-sm" onclick="exportToPDF()">
+                    <i class="fas fa-file-pdf me-1"></i>PDF出力
+                </button>
             </div>
         </div>
-
-        <div class="section-title">材料</div>
         
         <table class="ingredients-table">
             <thead>
@@ -293,8 +357,8 @@
 
         {% if recipe.total_cost > 0 %}
         <div class="total-cost">
-            <div class="amount">合計 ¥{{ "%.0f"|format(recipe.total_cost) }}</div>
-            <div class="per-serving">1人前 ¥{{ "%.0f"|format(recipe.total_cost / recipe.servings) }}</div>
+            <div class="amount">合計 ¥<span id="total-cost">{{ "%.0f"|format(recipe.total_cost) }}</span></div>
+            <div class="per-serving">1人前 ¥<span id="per-serving-cost">{{ "%.0f"|format(recipe.total_cost / recipe.servings) }}</span></div>
         </div>
         {% endif %}
     </div>
@@ -350,7 +414,118 @@
         
         document.addEventListener('DOMContentLoaded', function() {
             costModal = new bootstrap.Modal(document.getElementById('costModal'));
+            
+            // 人数変更時の原価再計算
+            const servingsInput = document.getElementById('servings-input');
+            const originalServings = {{ recipe.servings }};
+            const originalTotalCost = {{ recipe.total_cost }};
+            
+            servingsInput.addEventListener('input', function() {
+                const newServings = parseInt(this.value) || 1;
+                const newTotalCost = originalTotalCost * (newServings / originalServings);
+                const perServingCost = newTotalCost / newServings;
+                
+                document.getElementById('total-cost').textContent = Math.round(newTotalCost);
+                document.getElementById('per-serving-cost').textContent = Math.round(perServingCost);
+                
+                // 人数表示も更新
+                const perServingElement = document.querySelector('.per-serving');
+                perServingElement.innerHTML = `${newServings}人前 ¥<span id="per-serving-cost">${Math.round(perServingCost)}</span>`;
+            });
         });
+        
+        // 印刷機能
+        function printRecipe() {
+            window.print();
+        }
+        
+        // PDF出力機能
+        function exportToPDF() {
+            // 印刷用スタイルを適用
+            const printStyles = `
+                <style>
+                    @media print {
+                        body { 
+                            background: white !important;
+                            color: black !important;
+                            font-size: 12px;
+                            line-height: 1.4;
+                        }
+                        .container {
+                            background: white !important;
+                            border: 1px solid #ccc !important;
+                            box-shadow: none !important;
+                            border-radius: 0 !important;
+                            padding: 20px !important;
+                            margin: 0 !important;
+                        }
+                        .recipe-title {
+                            color: black !important;
+                            font-size: 18px !important;
+                            margin-bottom: 10px !important;
+                        }
+                        .recipe-meta {
+                            color: #666 !important;
+                            margin-bottom: 20px !important;
+                        }
+                        .section-title {
+                            color: black !important;
+                            font-size: 14px !important;
+                            margin-bottom: 10px !important;
+                        }
+                        .ingredients-table {
+                            width: 100% !important;
+                            border-collapse: collapse !important;
+                            margin-bottom: 20px !important;
+                        }
+                        .ingredients-table th,
+                        .ingredients-table td {
+                            border: 1px solid #ccc !important;
+                            padding: 8px !important;
+                            text-align: left !important;
+                            color: black !important;
+                            background: white !important;
+                        }
+                        .ingredients-table th {
+                            background: #f5f5f5 !important;
+                            font-weight: bold !important;
+                        }
+                        .total-cost {
+                            border: 1px solid #ccc !important;
+                            padding: 15px !important;
+                            text-align: center !important;
+                            margin-top: 20px !important;
+                            background: #f9f9f9 !important;
+                        }
+                        .total-cost .amount {
+                            color: black !important;
+                            font-size: 16px !important;
+                            font-weight: bold !important;
+                        }
+                        .total-cost .per-serving {
+                            color: #666 !important;
+                            font-size: 12px !important;
+                        }
+                        .back-btn,
+                        .action-buttons,
+                        .servings-selector {
+                            display: none !important;
+                        }
+                    }
+                </style>
+            `;
+            
+            // 一時的にスタイルを追加
+            const styleElement = document.createElement('style');
+            styleElement.innerHTML = printStyles;
+            document.head.appendChild(styleElement);
+            
+            // 印刷を実行
+            window.print();
+            
+            // スタイルを削除
+            document.head.removeChild(styleElement);
+        }
 
         function openCostModal(ingredientName, quantity, unit, ingredientId) {
             document.getElementById('ingredientName').value = ingredientName;
