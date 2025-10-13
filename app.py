@@ -903,13 +903,50 @@ def handle_image_message(event):
             
             print(f"🔍 画像データ取得開始: {type(message_content)}")
             
-            for chunk in message_content.iter_content():
-                image_bytes += chunk
+            # LINE Bot SDK v3の正しい画像取得方法
+            try:
+                # ストリーミング方式で取得
+                for chunk in message_content.iter_content(chunk_size=8192):
+                    if chunk:
+                        image_bytes += chunk
+                print(f"✅ ストリーミング方式で取得成功: {len(image_bytes)} bytes")
+                
+            except AttributeError:
+                # iter_contentがない場合は別の方法を試す
+                print("⚠️ iter_contentメソッドが見つかりません。別の方法を試します。")
+                
+                try:
+                    # contentプロパティを直接取得
+                    if hasattr(message_content, 'content'):
+                        image_bytes = message_content.content
+                        print(f"✅ contentプロパティで取得成功: {len(image_bytes)} bytes")
+                    else:
+                        # その他の属性を試す
+                        for attr in ['data', 'body', 'raw']:
+                            if hasattr(message_content, attr):
+                                content = getattr(message_content, attr)
+                                if isinstance(content, bytes):
+                                    image_bytes = content
+                                    print(f"✅ {attr}プロパティで取得成功: {len(image_bytes)} bytes")
+                                    break
+                                    
+                        if not image_bytes:
+                            raise ValueError("画像データを取得できませんでした")
+                            
+                except Exception as e2:
+                    print(f"❌ 代替方法でも失敗: {e2}")
+                    raise e2
+                
+            if len(image_bytes) == 0:
+                raise ValueError("画像データが空です")
                 
             print(f"✅ 画像データ取得成功: {len(image_bytes)} bytes")
             
         except Exception as e:
             print(f"❌ 画像データ取得エラー: {e}")
+            print(f"message_content type: {type(message_content)}")
+            if hasattr(message_content, '__dict__'):
+                print(f"message_content attributes: {message_content.__dict__}")
             import traceback
             traceback.print_exc()
             line_bot_api.reply_message(ReplyMessageRequest(
