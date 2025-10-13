@@ -359,6 +359,56 @@
                             </div>
                         </div>
 
+                        <!-- AI Engine Selection Section -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="feature-card">
+                                    <div class="card-body">
+                                        <h4 class="card-title fw-bold text-warning mb-3">
+                                            <i class="fas fa-robot me-2"></i>AI解析エンジン設定
+                                        </h4>
+                                        <p class="card-text text-muted mb-4">
+                                            レシピ画像解析に使用するAIエンジンを選択できます
+                                        </p>
+                                        
+                                        <!-- AI Provider Selection -->
+                                        <div class="row justify-content-center mb-4">
+                                            <div class="col-md-6">
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="radio" name="aiProvider" id="groq" value="groq" checked>
+                                                    <label class="form-check-label" for="groq">
+                                                        <strong>⚡ Groq</strong> - 高速・無料
+                                                        <br><small class="text-muted">Llama-3.1-8b-instantモデル</small>
+                                                    </label>
+                                                </div>
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="radio" name="aiProvider" id="gpt" value="gpt">
+                                                    <label class="form-check-label" for="gpt">
+                                                        <strong>🧠 GPT</strong> - 高精度・安定
+                                                        <br><small class="text-muted">GPT-4o-miniモデル</small>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- AI Status -->
+                                        <div id="aiStatus" class="mb-3">
+                                            <div class="alert alert-info">
+                                                <i class="fas fa-info-circle"></i> 現在のAIエンジンを確認中...
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Switch Button -->
+                                        <div class="text-center">
+                                            <button class="btn btn-warning btn-custom text-white" id="switchAI">
+                                                <i class="fas fa-exchange-alt me-2"></i>AIエンジンを切り替え
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- System Status Section -->
                         <div class="row mt-4">
                             <div class="col-12">
@@ -466,7 +516,136 @@
             } else {
                 console.error('更新ボタンが見つかりません');
             }
+            
+            // AI選択機能
+            const switchAIBtn = document.getElementById('switchAI');
+            const aiStatus = document.getElementById('aiStatus');
+            
+            if (switchAIBtn && aiStatus) {
+                console.log('AI選択機能初期化');
+                
+                // 現在のAIエンジンを確認
+                checkCurrentAI();
+                
+                // AI切り替えボタンのイベントリスナー
+                switchAIBtn.addEventListener('click', function() {
+                    const selectedProvider = document.querySelector('input[name="aiProvider"]:checked');
+                    if (selectedProvider) {
+                        switchAI(selectedProvider.value);
+                    }
+                });
+            } else {
+                console.log('AI選択要素が見つかりません');
+            }
         });
+        
+        // 現在のAIエンジンを確認する関数
+        async function checkCurrentAI() {
+            try {
+                const response = await fetch('/debug/test-ai');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const currentProvider = data.ai_provider;
+                    updateAIStatus(currentProvider);
+                    
+                    // ラジオボタンを現在のプロバイダーに設定
+                    const radioButton = document.querySelector(`input[name="aiProvider"][value="${currentProvider}"]`);
+                    if (radioButton) {
+                        radioButton.checked = true;
+                    }
+                } else {
+                    updateAIStatus('unknown', 'エラー: AIエンジンの確認に失敗しました');
+                }
+            } catch (error) {
+                console.error('AI status check error:', error);
+                updateAIStatus('unknown', 'エラー: AIエンジンの確認に失敗しました');
+            }
+        }
+        
+        // AIエンジンを切り替える関数
+        async function switchAI(provider) {
+            const switchAIBtn = document.getElementById('switchAI');
+            const aiStatus = document.getElementById('aiStatus');
+            
+            try {
+                switchAIBtn.disabled = true;
+                switchAIBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>切り替え中...';
+                
+                const response = await fetch('/debug/switch-ai', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ provider: provider })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateAIStatus(provider, `✅ ${data.message}`);
+                    showNotification('success', `AIエンジンを${provider.toUpperCase()}に切り替えました`);
+                } else {
+                    updateAIStatus('error', `❌ エラー: ${data.error}`);
+                    showNotification('error', 'AIエンジンの切り替えに失敗しました');
+                }
+            } catch (error) {
+                console.error('AI switch error:', error);
+                updateAIStatus('error', '❌ エラー: 切り替えに失敗しました');
+                showNotification('error', 'AIエンジンの切り替えに失敗しました');
+            } finally {
+                switchAIBtn.disabled = false;
+                switchAIBtn.innerHTML = '<i class="fas fa-exchange-alt me-2"></i>AIエンジンを切り替え';
+            }
+        }
+        
+        // AIステータスを更新する関数
+        function updateAIStatus(provider, message) {
+            const aiStatus = document.getElementById('aiStatus');
+            if (!aiStatus) return;
+            
+            let statusClass = 'alert-info';
+            let icon = 'fas fa-info-circle';
+            
+            if (provider === 'groq') {
+                statusClass = 'alert-success';
+                icon = 'fas fa-bolt';
+                message = message || '✅ Groq AI エンジンが動作中です';
+            } else if (provider === 'gpt') {
+                statusClass = 'alert-primary';
+                icon = 'fas fa-brain';
+                message = message || '✅ GPT AI エンジンが動作中です';
+            } else if (provider === 'error' || provider === 'unknown') {
+                statusClass = 'alert-danger';
+                icon = 'fas fa-exclamation-triangle';
+            }
+            
+            aiStatus.innerHTML = `
+                <div class="alert ${statusClass}">
+                    <i class="${icon}"></i> ${message}
+                </div>
+            `;
+        }
+        
+        // 通知を表示する関数
+        function showNotification(type, message) {
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // 3秒後に自動削除
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
     </script>
     <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 </body>
