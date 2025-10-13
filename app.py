@@ -1874,11 +1874,16 @@ def _format_ocr_text_for_display(ocr_text):
     while i < len(lines):
         line = lines[i]
         
-        # 材料名の可能性をチェック（文字が多く、数字が少ない、点で終わる）
-        if (line.endswith('.') and 
-            not any(char.isdigit() for char in line) and 
-            len(line) > 2):
-            
+        # 材料名の可能性をチェック（点で終わる、または文字が多く数字が少ない）
+        is_ingredient_line = (
+            (line.endswith('.') and not any(char.isdigit() for char in line) and len(line) > 2) or
+            (not any(char.isdigit() for char in line) and 
+             not line.startswith('.') and 
+             len(line) > 1 and
+             not any(unit in line for unit in ['cc', 'g', 'ml', '個', '本', '玉', '丁', '袋', '大さじ', '小さじ', 'カップ', '適量']))
+        )
+        
+        if is_ingredient_line:
             # 材料名として認識（末尾の点を除去）
             ingredient = line.rstrip('.')
             
@@ -1886,11 +1891,14 @@ def _format_ocr_text_for_display(ocr_text):
             if i + 1 < len(lines):
                 next_line = lines[i + 1]
                 
-                # 分量の可能性をチェック（点で始まる、または数字・単位を含む）
-                if (next_line.startswith('.') or 
+                # 分量の可能性をチェック
+                is_quantity_line = (
+                    next_line.startswith('.') or 
                     any(char.isdigit() for char in next_line) or
-                    any(unit in next_line for unit in ['cc', 'g', 'ml', '個', '本', '玉', '丁', '袋', '大さじ', '小さじ', 'カップ', '適量'])):
-                    
+                    any(unit in next_line for unit in ['cc', 'g', 'ml', '個', '本', '玉', '丁', '袋', '大さじ', '小さじ', 'カップ', '適量'])
+                )
+                
+                if is_quantity_line:
                     # 分量として認識（先頭の点を除去）
                     quantity = next_line.lstrip('.')
                     
