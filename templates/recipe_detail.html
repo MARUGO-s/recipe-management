@@ -614,41 +614,31 @@
             document.getElementById('ingredientName').value = ingredientName;
             document.getElementById('ingredientQuantity').value = quantity.toString() + (unit ? unit.toString() : '');
             document.getElementById('ingredientId').value = ingredientId;
-            
-            // 既存の原価がある場合は表示
-            if (existingCost) {
-                document.getElementById('unitPrice').value = existingCost;
-                document.getElementById('capacity').value = '1';
-                document.getElementById('capacityUnit').value = unit || '個';
-            } else {
-                // cost_masterから最新の値を取得
-                try {
-                    const response = await fetch(`/api/get-cost-master/${encodeURIComponent(ingredientName)}`);
-                    if (response.ok) {
-                        const costData = await response.json();
-                        if (costData.success && costData.cost_master) {
-                            document.getElementById('unitPrice').value = costData.cost_master.unit_price || '';
-                            document.getElementById('capacity').value = costData.cost_master.capacity || '1';
-                            document.getElementById('capacityUnit').value = costData.cost_master.unit || '個';
-                        } else {
-                            // cost_masterにデータがない場合はデフォルト値
-                            document.getElementById('unitPrice').value = '';
-                            document.getElementById('capacity').value = '1';
-                            document.getElementById('capacityUnit').value = '個';
-                        }
+
+            // cost_masterから常に最新の値を取得してプレフィル（既存の原価有無に関わらず）
+            try {
+                const response = await fetch(`/api/get-cost-master/${encodeURIComponent(ingredientName)}`);
+                if (response.ok) {
+                    const costData = await response.json();
+                    if (costData.success && costData.cost_master) {
+                        document.getElementById('unitPrice').value = costData.cost_master.unit_price ?? '';
+                        document.getElementById('capacity').value = costData.cost_master.capacity ?? '1';
+                        document.getElementById('capacityUnit').value = costData.cost_master.unit ?? '個';
                     } else {
-                        // APIエラーの場合はデフォルト値
                         document.getElementById('unitPrice').value = '';
                         document.getElementById('capacity').value = '1';
                         document.getElementById('capacityUnit').value = '個';
                     }
-                } catch (error) {
-                    console.error('cost_master取得エラー:', error);
-                    // エラーの場合はデフォルト値
+                } else {
                     document.getElementById('unitPrice').value = '';
                     document.getElementById('capacity').value = '1';
                     document.getElementById('capacityUnit').value = '個';
                 }
+            } catch (error) {
+                console.error('cost_master取得エラー:', error);
+                document.getElementById('unitPrice').value = '';
+                document.getElementById('capacity').value = '1';
+                document.getElementById('capacityUnit').value = '個';
             }
             
             // モーダルタイトルを更新
