@@ -1371,13 +1371,13 @@ def handle_image_message(event):
             cleaned_ocr_text = cleaned_ocr_text.split('料理を楽しむにあたって')[0].strip()
             print(f"✅ '料理を楽しむにあたって' を除去")
         
-        # 強制的に末尾の数字を除去
-        if '\n6' in cleaned_ocr_text:
+        # 末尾の数字のみを除去（材料の分量は保持）
+        if '\n6' in cleaned_ocr_text and cleaned_ocr_text.endswith('\n6料理を楽しむにあたって'):
             cleaned_ocr_text = cleaned_ocr_text.split('\n6')[0].strip()
-            print(f"✅ '\\n6' を除去")
-        elif cleaned_ocr_text.endswith('6'):
-            cleaned_ocr_text = cleaned_ocr_text[:-1].strip()
-            print(f"✅ 末尾の '6' を除去")
+            print(f"✅ 末尾の余分な文字 '\\n6料理を楽しむにあたって' を除去")
+        elif cleaned_ocr_text.endswith('6料理を楽しむにあたって'):
+            cleaned_ocr_text = cleaned_ocr_text.replace('6料理を楽しむにあたって', '').strip()
+            print(f"✅ 末尾の余分な文字 '6料理を楽しむにあたって' を除去")
         
         # 連続する改行を単一の改行に統一
         lines = [line.strip() for line in cleaned_ocr_text.split('\n') if line.strip()]
