@@ -84,10 +84,46 @@
             border-radius: 3px;
             transition: all 0.3s ease;
         }
-        .no-cost:hover {
-            background: rgba(255, 171, 145, 0.2);
-            color: #ffccbc;
-        }
+             .no-cost:hover {
+                 background: rgba(255, 171, 145, 0.2);
+                 color: #ffccbc;
+             }
+             .cost-with-edit {
+                 display: flex;
+                 align-items: center;
+                 justify-content: space-between;
+                 gap: 8px;
+             }
+             .cost-amount {
+                 color: #81c784;
+                 font-weight: 500;
+             }
+             .edit-cost-btn {
+                 padding: 2px 6px;
+                 font-size: 0.7rem;
+                 border: 1px solid rgba(255, 255, 255, 0.3);
+                 background: transparent;
+                 color: #b0b0b0;
+                 transition: all 0.3s ease;
+             }
+             .edit-cost-btn:hover {
+                 background: rgba(100, 181, 246, 0.2);
+                 border-color: #64b5f6;
+                 color: #64b5f6;
+             }
+             .add-cost-btn {
+                 padding: 4px 8px;
+                 font-size: 0.75rem;
+                 border: 1px solid rgba(76, 175, 80, 0.5);
+                 background: transparent;
+                 color: #4caf50;
+                 transition: all 0.3s ease;
+             }
+             .add-cost-btn:hover {
+                 background: rgba(76, 175, 80, 0.2);
+                 border-color: #4caf50;
+                 color: #4caf50;
+             }
         .total-cost {
             background: rgba(40, 40, 60, 0.8);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -251,6 +287,16 @@
                  .servings-input {
                      width: 80px;
                  }
+                 .cost-with-edit {
+                     flex-direction: column;
+                     align-items: flex-end;
+                     gap: 4px;
+                 }
+                 .edit-cost-btn,
+                 .add-cost-btn {
+                     font-size: 0.65rem;
+                     padding: 2px 4px;
+                 }
              }
     </style>
 </head>
@@ -339,15 +385,22 @@
                             {{ ingredient.quantity }}{{ ingredient.unit }}
                         {% endif %}
                     </td>
-                    <td class="{% if ingredient.cost and ingredient.cost > 0 %}cost{% else %}no-cost{% endif %}" 
-                        {% if not (ingredient.cost and ingredient.cost > 0) %}
-                        onclick="openCostModal('{{ ingredient.ingredient_name }}', '{{ ingredient.quantity }}', '{{ ingredient.unit }}', '{{ ingredient.id }}')"
-                        title="クリックして原価を登録"
-                        {% endif %}>
+                    <td class="{% if ingredient.cost and ingredient.cost > 0 %}cost{% else %}no-cost{% endif %}">
                         {% if ingredient.cost and ingredient.cost > 0 %}
-                            ¥{{ "%.0f"|format(ingredient.cost) }}
+                            <div class="cost-with-edit">
+                                <span class="cost-amount">¥{{ "%.0f"|format(ingredient.cost) }}</span>
+                                <button class="btn btn-sm btn-outline-light edit-cost-btn" 
+                                        onclick="openCostModal('{{ ingredient.ingredient_name }}', '{{ ingredient.quantity }}', '{{ ingredient.unit }}', '{{ ingredient.id }}', '{{ ingredient.cost }}')"
+                                        title="原価を修正">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </div>
                         {% else %}
-                            未登録
+                            <button class="btn btn-sm btn-outline-success add-cost-btn" 
+                                    onclick="openCostModal('{{ ingredient.ingredient_name }}', '{{ ingredient.quantity }}', '{{ ingredient.unit }}', '{{ ingredient.id }}')"
+                                    title="原価を登録">
+                                <i class="fas fa-plus"></i> 登録
+                            </button>
                         {% endif %}
                     </td>
                 </tr>
@@ -527,13 +580,29 @@
             document.head.removeChild(styleElement);
         }
 
-        function openCostModal(ingredientName, quantity, unit, ingredientId) {
+        function openCostModal(ingredientName, quantity, unit, ingredientId, existingCost = null) {
             document.getElementById('ingredientName').value = ingredientName;
             document.getElementById('ingredientQuantity').value = quantity + unit;
             document.getElementById('ingredientId').value = ingredientId;
-            document.getElementById('unitPrice').value = '';
-            document.getElementById('capacity').value = '1';
-            document.getElementById('capacityUnit').value = unit || '個';
+            
+            // 既存の原価がある場合は表示
+            if (existingCost) {
+                document.getElementById('unitPrice').value = existingCost;
+                document.getElementById('capacity').value = '1';
+                document.getElementById('capacityUnit').value = unit || '個';
+            } else {
+                document.getElementById('unitPrice').value = '';
+                document.getElementById('capacity').value = '1';
+                document.getElementById('capacityUnit').value = unit || '個';
+            }
+            
+            // モーダルタイトルを更新
+            const modalTitle = document.getElementById('costModalLabel');
+            if (existingCost) {
+                modalTitle.textContent = '原価修正';
+            } else {
+                modalTitle.textContent = '原価登録';
+            }
             
             costModal.show();
         }
