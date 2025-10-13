@@ -160,7 +160,10 @@ JSON："""
                 return False
             if "quantity" not in ingredient or not isinstance(ingredient["quantity"], (int, float)):
                 return False
-            if "unit" not in ingredient or not ingredient["unit"]:
+            # quantityが0の場合はunitが空でも許容する
+            if ingredient["quantity"] == 0 and not ingredient.get("unit"):
+                pass # unitが空でもOK
+            elif "unit" not in ingredient or not ingredient["unit"]:
                 return False
             # 容量情報のチェック（オプション）
             if "capacity" not in ingredient or not isinstance(ingredient["capacity"], (int, float)):
