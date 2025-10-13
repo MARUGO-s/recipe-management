@@ -2458,8 +2458,20 @@ def handle_follow_up_question(user_id, text):
 
     # タイムスタンプをチェック（5分以内）
     from dateutil.parser import isoparse
-    time_diff = datetime.now().astimezone() - isoparse(state.get('timestamp'))
-    if time_diff.total_seconds() > 300:
+    try:
+        timestamp_str = state.get('timestamp')
+        if timestamp_str:
+            timestamp = isoparse(timestamp_str)
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=None)
+            current_time = datetime.now()
+            if current_time.tzinfo is not None:
+                current_time = current_time.replace(tzinfo=None)
+            time_diff = current_time - timestamp
+            if time_diff.total_seconds() > 300:
+                return None
+    except Exception as e:
+        print(f"タイムスタンプ処理エラー: {e}")
         return None
 
     # LLMでユーザーの質問の意図を解釈
