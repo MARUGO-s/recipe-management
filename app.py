@@ -1068,9 +1068,12 @@ def handle_image_message(event):
                 to=event.source.user_id,
                 messages=[TextMessage(text=f"レシピ情報を解析できませんでした。\n\n📄 抽出されたテキスト:\n{formatted_text}") ]
             ))
-
-
             return
+
+        # 解析成功時は選択肢を表示
+        print(f"✅ Groq解析成功: {recipe_data}")
+        create_recipe_review_flex_message(recipe_data, event.source.user_id)
+        return
 
 
         
@@ -1861,6 +1864,147 @@ def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, 
     return recipe_id
 
 
+def create_recipe_review_flex_message(recipe_data, user_id):
+    """レシピ確認用のFlexMessageを作成"""
+    try:
+        # 材料リストを整形
+        ingredients_text = ""
+        for i, ingredient in enumerate(recipe_data.get('ingredients', []), 1):
+            name = ingredient.get('name', '')
+            quantity = ingredient.get('quantity', 0)
+            unit = ingredient.get('unit', '')
+            ingredients_text += f"{i}. {name} {quantity}{unit}\n"
+        
+        # FlexMessageのコンテナを作成
+        flex_container = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "📋 レシピ解析結果",
+                        "weight": "bold",
+                        "size": "lg",
+                        "color": "#1DB446"
+                    },
+                    {
+                        "type": "separator",
+                        "margin": "md"
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "margin": "md",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": f"料理名: {recipe_data.get('recipe_name', 'カスタムレシピ')}",
+                                "weight": "bold",
+                                "size": "md"
+                            },
+                            {
+                                "type": "text",
+                                "text": f"人数: {recipe_data.get('servings', 2)}人前",
+                                "size": "sm",
+                                "color": "#666666"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "separator",
+                        "margin": "md"
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "margin": "md",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "材料リスト:",
+                                "weight": "bold",
+                                "size": "sm"
+                            },
+                            {
+                                "type": "text",
+                                "text": ingredients_text.strip(),
+                                "size": "sm",
+                                "wrap": True,
+                                "margin": "sm"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "action": {
+                            "type": "postback",
+                            "label": "💰 原価計算する",
+                            "data": f"calculate_cost:{user_id}"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "postback",
+                            "label": "✏️ 材料を修正",
+                            "data": f"edit_recipe:{user_id}"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "action": {
+                            "type": "postback",
+                            "label": "💾 そのまま登録",
+                            "data": f"save_recipe:{user_id}"
+                        }
+                    }
+                ]
+            }
+        }
+        
+        # レシピデータを一時保存
+        set_user_state(user_id, {
+            'last_action': 'recipe_analysis',
+            'recipe_data': recipe_data,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        # FlexMessageを送信
+        line_bot_api.push_message(PushMessageRequest(
+            to=user_id,
+            messages=[FlexMessage(
+                alt_text="レシピ解析結果の確認",
+                contents=FlexContainer.from_dict(flex_container)
+            )]
+        ))
+        
+    except Exception as e:
+        print(f"❌ FlexMessage作成エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # エラー時は通常のテキストメッセージ
+        line_bot_api.push_message(PushMessageRequest(
+            to=user_id,
+            messages=[TextMessage(text=f"レシピ解析が完了しました！\n\n料理名: {recipe_data.get('recipe_name', 'カスタムレシピ')}\n人数: {recipe_data.get('servings', 2)}人前\n\n材料:\n{ingredients_text}")]
+        ))
+
+
 def _format_ocr_text_for_display(ocr_text):
     """OCRテキストを見やすく整形して、材料名と分量を正しく関連付ける"""
     if not ocr_text:
@@ -2092,22 +2236,150 @@ def send_confirmation(event, ingredient_name, price):
 
 @handler.add(PostbackEvent)
 def handle_postback_event(event):
-    """Postbackイベントの処理（材料修正用）"""
+    """Postbackイベントの処理（レシピ確認・修正用）"""
     try:
         print(f"📱 Postbackイベント受信: {event.postback.data}")
         
         data = event.postback.data
+        user_id = event.source.user_id
         
-        # 現在は未対応のPostbackEvent
-        line_bot_api.reply_message(ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text="未対応の操作です。")]
-        ))
+        if data.startswith("calculate_cost:"):
+            # 原価計算を実行
+            handle_calculate_cost_postback(event, user_id)
+        elif data.startswith("edit_recipe:"):
+            # 材料修正フォームを表示
+            handle_edit_recipe_postback(event, user_id)
+        elif data.startswith("save_recipe:"):
+            # レシピをそのまま保存
+            handle_save_recipe_postback(event, user_id)
+        else:
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="未対応の操作です。")]
+            ))
         
     except Exception as e:
         print(f"❌ Postbackイベント処理エラー: {e}")
         import traceback
         traceback.print_exc()
+
+
+def handle_calculate_cost_postback(event, user_id):
+    """原価計算を実行するPostbackハンドラー"""
+    try:
+        # ユーザー状態からレシピデータを取得
+        user_state = get_user_state(user_id)
+        recipe_data = user_state.get('recipe_data')
+        
+        if not recipe_data:
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="レシピデータが見つかりません。再度画像を送信してください。")]
+            ))
+            return
+        
+        # 原価計算を実行
+        cost_result = cost_calculator.calculate_recipe_cost(recipe_data['ingredients'])
+        
+        # 会話状態を更新
+        new_state = {
+            'last_action': 'cost_calculated',
+            'recipe_data': recipe_data,
+            'cost_result': cost_result,
+            'timestamp': datetime.now().isoformat()
+        }
+        set_user_state(user_id, new_state)
+        
+        # 結果を表示
+        response_message = format_cost_response(
+            recipe_data['recipe_name'],
+            recipe_data['servings'],
+            cost_result['ingredients_with_cost'],
+            cost_result['total_cost'],
+            cost_result['missing_ingredients']
+        )
+        
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=response_message)]
+        ))
+        
+    except Exception as e:
+        print(f"❌ 原価計算エラー: {e}")
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text="原価計算中にエラーが発生しました。")]
+        ))
+
+
+def handle_edit_recipe_postback(event, user_id):
+    """材料修正フォームを表示するPostbackハンドラー"""
+    try:
+        # ユーザー状態からレシピデータを取得
+        user_state = get_user_state(user_id)
+        recipe_data = user_state.get('recipe_data')
+        
+        if not recipe_data:
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="レシピデータが見つかりません。再度画像を送信してください。")]
+            ))
+            return
+        
+        # 修正用のフォームURLを生成
+        form_url = f"https://recipe-management-nd00.onrender.com/recipe/edit?user_id={user_id}"
+        
+        # 修正フォームへのリンクを送信
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=f"材料を修正するには、以下のリンクからフォームにアクセスしてください：\n\n{form_url}\n\nフォームで材料を修正後、LINEに戻ってレシピを登録できます。")]
+        ))
+        
+    except Exception as e:
+        print(f"❌ 修正フォーム表示エラー: {e}")
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text="修正フォームの表示中にエラーが発生しました。")]
+        ))
+
+
+def handle_save_recipe_postback(event, user_id):
+    """レシピをそのまま保存するPostbackハンドラー"""
+    try:
+        # ユーザー状態からレシピデータを取得
+        user_state = get_user_state(user_id)
+        recipe_data = user_state.get('recipe_data')
+        
+        if not recipe_data:
+            line_bot_api.reply_message(ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="レシピデータが見つかりません。再度画像を送信してください。")]
+            ))
+            return
+        
+        # レシピをデータベースに保存
+        recipe_id = save_recipe_to_supabase(
+            recipe_data['recipe_name'],
+            recipe_data['servings'],
+            0,  # 原価計算なしの場合は0
+            recipe_data['ingredients']
+        )
+        
+        # 会話状態をクリア
+        clear_user_state(user_id)
+        
+        # 保存完了メッセージ
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=f"✅ レシピを保存しました！\n\n料理名: {recipe_data['recipe_name']}\n人数: {recipe_data['servings']}人前\n\n材料数: {len(recipe_data['ingredients'])}種類\n\nレシピID: {recipe_id}")]
+        ))
+        
+    except Exception as e:
+        print(f"❌ レシピ保存エラー: {e}")
+        line_bot_api.reply_message(ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text="レシピの保存中にエラーが発生しました。")]
+        ))
 
 
 if __name__ == "__main__":
