@@ -1862,66 +1862,64 @@ def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, 
 
 
 def _format_ocr_text_for_display(ocr_text):
-    """OCRテキストを見やすく整形"""
+    """OCRテキストを見やすく整形して、材料名と分量を正しく関連付ける"""
     if not ocr_text:
         return "テキストが抽出されませんでした"
     
-    # 改行で分割
-    lines = ocr_text.split('\n')
+    # 改行で分割して、空行を削除
+    lines = [line.strip() for line in ocr_text.split('\n') if line.strip()]
     formatted_lines = []
-    current_ingredient = ""
-    current_quantity = ""
     
     i = 0
     while i < len(lines):
-        line = lines[i].strip()
+        line = lines[i]
         
-        if not line:
-            i += 1
-            continue
-            
-        # 材料名の可能性をチェック（文字が多く、数字が少ない）
-        if (len(line) > 0 and 
+        # 材料名の可能性をチェック（文字が多く、数字が少ない、点で終わる）
+        if (line.endswith('.') and 
             not any(char.isdigit() for char in line) and 
-            '.' not in line and
-            not line.startswith('.') and
-            line not in ['cc', 'g', 'ml', '個', '本', '玉', '丁', '袋', '大さじ', '小さじ', 'カップ', '適量']):
+            len(line) > 2):
             
-            # 材料名として認識
-            current_ingredient = line
+            # 材料名として認識（末尾の点を除去）
+            ingredient = line.rstrip('.')
             
             # 次の行をチェックして分量を探す
             if i + 1 < len(lines):
-                next_line = lines[i + 1].strip()
+                next_line = lines[i + 1]
+                
+                # 分量の可能性をチェック（点で始まる、または数字・単位を含む）
                 if (next_line.startswith('.') or 
                     any(char.isdigit() for char in next_line) or
-                    next_line in ['cc', 'g', 'ml', '個', '本', '玉', '丁', '袋', '大さじ', '小さじ', 'カップ', '適量']):
-                    current_quantity = next_line.lstrip('.')
+                    any(unit in next_line for unit in ['cc', 'g', 'ml', '個', '本', '玉', '丁', '袋', '大さじ', '小さじ', 'カップ', '適量'])):
+                    
+                    # 分量として認識（先頭の点を除去）
+                    quantity = next_line.lstrip('.')
+                    
+                    # 一行で表示
+                    formatted_lines.append(f"• {ingredient}: {quantity}")
                     i += 2  # 材料名と分量の両方を処理
                 else:
-                    current_quantity = ""
+                    # 分量が見つからない場合は材料名のみ
+                    formatted_lines.append(f"• {ingredient}")
                     i += 1
             else:
-                current_quantity = ""
+                # 次の行がない場合は材料名のみ
+                formatted_lines.append(f"• {ingredient}")
                 i += 1
                 
-            # 一行で表示
-            if current_ingredient and current_quantity:
-                formatted_lines.append(f"• {current_ingredient}: {current_quantity}")
-            elif current_ingredient:
-                formatted_lines.append(f"• {current_ingredient}")
-                
+        # 材料名と分量が既に結合されている行
+        elif ':' in line and (any(char.isdigit() for char in line) or '適量' in line):
+            formatted_lines.append(f"• {line}")
+            i += 1
+            
+        # 分量だけの行（点で始まる）
+        elif line.startswith('.') and (any(char.isdigit() for char in line) or '適量' in line):
+            quantity = line.lstrip('.')
+            formatted_lines.append(f"• 分量不明: {quantity}")
+            i += 1
+            
+        # その他の行
         else:
-            # 分量だけの行またはその他の行
-            if line.startswith('.') or any(char.isdigit() for char in line):
-                if current_ingredient:
-                    quantity = line.lstrip('.')
-                    formatted_lines.append(f"• {current_ingredient}: {quantity}")
-                    current_ingredient = ""
-                else:
-                    formatted_lines.append(f"• {line}")
-            else:
-                formatted_lines.append(f"• {line}")
+            formatted_lines.append(f"• {line}")
             i += 1
     
     # すべての行を表示
