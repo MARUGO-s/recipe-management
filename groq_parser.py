@@ -83,12 +83,15 @@ class GroqRecipeParser:
             )
             
             response_text = chat_completion.choices[0].message.content.strip()
+            print(f"🔍 Groq生レスポンス: {response_text}")
             
             # JSONの抽出（コードブロックで囲まれている場合に対応）
             if "```json" in response_text:
                 response_text = response_text.split("```json")[1].split("```")[0].strip()
+                print(f"🔍 JSONブロック抽出後: {response_text}")
             elif "```" in response_text:
                 response_text = response_text.split("```")[1].split("```")[0].strip()
+                print(f"🔍 コードブロック抽出後: {response_text}")
             
             # JSONをパース
             recipe_data = json.loads(response_text)

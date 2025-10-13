@@ -145,6 +145,15 @@ def get_user_state(user_id):
         print(f"ユーザー状態の取得エラー: {e}")
     return {}
 
+
+def clear_user_state(user_id):
+    """ユーザーの会話状態をクリア"""
+    try:
+        supabase.table("conversation_state").delete().eq("user_id", user_id).execute()
+        print(f"ユーザー {user_id} の会話状態をクリアしました")
+    except Exception as e:
+        print(f"会話状態クリアエラー: {e}")
+
 def set_user_state(user_id, state):
     """ユーザーの状態をDBに保存"""
     try:
