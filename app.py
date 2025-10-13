@@ -1284,14 +1284,19 @@ def handle_image_message(event):
         
         # OCRテキストの前処理（余分な文字を除去）
         cleaned_ocr_text = ocr_text.strip()
-        # 末尾の余分な文字を除去
-        if cleaned_ocr_text.endswith('料理を楽しむにあたって'):
-            cleaned_ocr_text = cleaned_ocr_text.replace('料理を楽しむにあたって', '').strip()
-        # 末尾の数字を除去
-        if cleaned_ocr_text.endswith('\n6'):
-            cleaned_ocr_text = cleaned_ocr_text.replace('\n6', '').strip()
+        
+        # 末尾の余分な文字を除去（より柔軟に）
+        if '料理を楽しむにあたって' in cleaned_ocr_text:
+            cleaned_ocr_text = cleaned_ocr_text.split('料理を楽しむにあたって')[0].strip()
+        
+        # 末尾の数字を除去（より柔軟に）
+        if '\n6' in cleaned_ocr_text:
+            cleaned_ocr_text = cleaned_ocr_text.split('\n6')[0].strip()
         elif cleaned_ocr_text.endswith('6'):
-            cleaned_ocr_text = cleaned_ocr_text.replace('6', '').strip()
+            cleaned_ocr_text = cleaned_ocr_text[:-1].strip()
+        
+        # 連続する改行を単一の改行に統一
+        cleaned_ocr_text = '\n'.join([line.strip() for line in cleaned_ocr_text.split('\n') if line.strip()])
         
         print(f"🧹 前処理後のOCRテキスト (全{len(cleaned_ocr_text)}文字):\n{repr(cleaned_ocr_text)}")
         
