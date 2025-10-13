@@ -735,7 +735,12 @@ def debug_test_groq():
         return jsonify({
             "success": True,
             "test_ocr_text": test_ocr_text,
-            "parsed_recipe": recipe_data
+            "parsed_recipe": recipe_data,
+            "debug_info": {
+                "ocr_text_length": len(test_ocr_text),
+                "recipe_data_type": type(recipe_data).__name__,
+                "recipe_data_is_none": recipe_data is None
+            }
         })
     except Exception as e:
         import traceback
