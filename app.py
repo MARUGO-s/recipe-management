@@ -739,7 +739,8 @@ def debug_test_groq():
             "debug_info": {
                 "ocr_text_length": len(test_ocr_text),
                 "recipe_data_type": type(recipe_data).__name__,
-                "recipe_data_is_none": recipe_data is None
+                "recipe_data_is_none": recipe_data is None,
+                "groq_raw_response": "詳細はログで確認してください"
             }
         })
     except Exception as e:
@@ -782,6 +783,99 @@ def debug_test_groq_raw():
             "test_ocr_text": test_ocr_text,
             "groq_raw_response": raw_response,
             "response_length": len(raw_response)
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
+@app.route("/debug/test-groq-step-by-step", methods=['GET'])
+def debug_test_groq_step_by_step():
+    """デバッグ用：Groq解析の各ステップを確認"""
+    try:
+        # テスト用のOCRテキスト
+        test_ocr_text = """牛乳.
+.250cc
+バニラのさやl
+.1/4本
+卵黄
+.3個
+砂糖
+.60g
+バニラエッセンス ..
+適量"""
+        
+        # Groqに直接問い合わせ
+        prompt = f"""以下のテキストからレシピ情報を抽出し、JSON形式で出力してください。
+
+材料名と分量が分離されている場合は結合してください。
+例：「牛乳.」+「.250cc」→ 牛乳 250cc
+
+出力形式：
+{{"recipe_name": "料理名", "servings": 2, "ingredients": [{{"name": "材料名", "quantity": 数値, "unit": "単位", "capacity": 1, "capacity_unit": "個"}}]}}
+
+注意：各材料には必ずcapacityとcapacity_unitを含めてください。
+
+テキスト：
+{test_ocr_text}
+
+JSON："""
+
+        response = groq_parser.client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "あなたはJSON出力の専門家です。必ず有効なJSON形式で出力します。"},
+                {"role": "user", "content": prompt}
+            ],
+            model="llama-3.1-8b-instant",
+            temperature=0.1,
+            max_tokens=1500
+        )
+        
+        raw_response = response.choices[0].message.content.strip()
+        
+        # JSON抽出の各ステップを試す
+        steps = {}
+        
+        # Step 1: 生レスポンス
+        steps["raw_response"] = raw_response
+        
+        # Step 2: コードブロック除去
+        if "```json" in raw_response:
+            step2 = raw_response.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw_response:
+            step2 = raw_response.split("```")[1].split("```")[0].strip()
+        else:
+            step2 = raw_response
+        steps["after_code_block_removal"] = step2
+        
+        # Step 3: JSONオブジェクト抽出
+        if "{" in step2 and "}" in step2:
+            start = step2.find("{")
+            end = step2.rfind("}") + 1
+            step3 = step2[start:end]
+        else:
+            step3 = step2
+        steps["after_json_extraction"] = step3
+        
+        # Step 4: JSON解析試行
+        try:
+            import json
+            parsed = json.loads(step3)
+            steps["json_parse_success"] = True
+            steps["parsed_data"] = parsed
+        except Exception as e:
+            steps["json_parse_success"] = False
+            steps["json_parse_error"] = str(e)
+        
+        return jsonify({
+            "success": True,
+            "test_ocr_text": test_ocr_text,
+            "steps": steps
         })
         
     except Exception as e:
