@@ -1062,9 +1062,11 @@ def handle_image_message(event):
         
         if not recipe_data:
             print(f"❌ Groq解析失敗: recipe_dataがNone")
+            # OCRテキストを整形して表示
+            formatted_text = self._format_ocr_text_for_display(ocr_text)
             line_bot_api.push_message(PushMessageRequest(
                 to=event.source.user_id,
-                messages=[TextMessage(text=f"レシピ情報を解析できませんでした。\n\n抽出されたテキスト:\n{ocr_text[:200]}..." )]
+                messages=[TextMessage(text=f"レシピ情報を解析できませんでした。\n\n📄 抽出されたテキスト:\n{formatted_text}") ]
             ))
 
 
@@ -1857,6 +1859,45 @@ def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, 
     
     print(f"レシピを保存しました: {recipe_id}")
     return recipe_id
+
+
+def _format_ocr_text_for_display(ocr_text):
+    """OCRテキストを見やすく整形"""
+    if not ocr_text:
+        return "テキストが抽出されませんでした"
+    
+    # 改行で分割
+    lines = ocr_text.split('\n')
+    formatted_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if line:
+            # 材料と分量を分離して整理
+            if '.' in line and any(char.isdigit() for char in line):
+                # 分量が含まれている行
+                parts = line.split('.')
+                if len(parts) >= 2:
+                    ingredient = parts[0].strip()
+                    quantity = '.'.join(parts[1:]).strip()
+                    if ingredient and quantity:
+                        formatted_lines.append(f"• {ingredient}: {quantity}")
+                    else:
+                        formatted_lines.append(f"• {line}")
+                else:
+                    formatted_lines.append(f"• {line}")
+            else:
+                # 通常の行
+                formatted_lines.append(f"• {line}")
+    
+    # 最大20行まで表示
+    display_lines = formatted_lines[:20]
+    result = '\n'.join(display_lines)
+    
+    if len(formatted_lines) > 20:
+        result += f"\n... 他{len(formatted_lines) - 20}行"
+    
+    return result
 
 
 def format_cost_response(recipe_name: str, servings: int, ingredients: list, total_cost: float, missing: list) -> str:
