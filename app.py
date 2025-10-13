@@ -130,15 +130,30 @@ def read_file_data(file):
             file_content = file.read()
             csv_data = None
             
-            # 複数のエンコーディングを試行
-            encodings = ['utf-8-sig', 'utf-8', 'shift_jis', 'cp932', 'euc-jp', 'iso-2022-jp']
+            # 複数のエンコーディングを試行（日本語ファイルに最適化）
+            encodings = [
+                'shift_jis',     # 最も一般的な日本語エンコーディング
+                'cp932',         # Windows版Shift-JIS
+                'utf-8-sig',     # UTF-8 with BOM
+                'utf-8',         # UTF-8 without BOM
+                'euc-jp',        # EUC-JP
+                'iso-2022-jp'    # ISO-2022-JP
+            ]
             
             for encoding in encodings:
                 try:
                     file.seek(0)
-                    csv_data = file_content.decode(encoding)
-                    print(f"🔍 CSV file decoded as {encoding}: {len(csv_data)} characters")
-                    break
+                    # エラーを無視してデコードを試行
+                    csv_data = file_content.decode(encoding, errors='ignore')
+                    print(f"🔍 CSV file decoded as {encoding} (with error handling): {len(csv_data)} characters")
+                    
+                    # デコードされた内容が妥当かチェック（最低限の文字数があるか）
+                    if len(csv_data.strip()) > 10:
+                        break
+                    else:
+                        print(f"🔍 {encoding} decoded but content too short, trying next encoding")
+                        continue
+                        
                 except (UnicodeDecodeError, UnicodeError) as e:
                     print(f"🔍 {encoding} decode failed: {e}")
                     continue
@@ -480,14 +495,30 @@ def admin_upload_transaction():
         file_content = file.read()
         csv_data = None
         
-        encodings = ['utf-8-sig', 'utf-8', 'shift_jis', 'cp932', 'euc-jp', 'iso-2022-jp']
+        # 複数のエンコーディングを試行（日本語ファイルに最適化）
+        encodings = [
+            'shift_jis',     # 最も一般的な日本語エンコーディング
+            'cp932',         # Windows版Shift-JIS
+            'utf-8-sig',     # UTF-8 with BOM
+            'utf-8',         # UTF-8 without BOM
+            'euc-jp',        # EUC-JP
+            'iso-2022-jp'    # ISO-2022-JP
+        ]
         
         for encoding in encodings:
             try:
                 file.seek(0)
-                csv_data = file_content.decode(encoding)
-                print(f"🔍 CSV file decoded as {encoding}: {len(csv_data)} characters")
-                break
+                # エラーを無視してデコードを試行
+                csv_data = file_content.decode(encoding, errors='ignore')
+                print(f"🔍 CSV file decoded as {encoding} (with error handling): {len(csv_data)} characters")
+                
+                # デコードされた内容が妥当かチェック（最低限の文字数があるか）
+                if len(csv_data.strip()) > 10:
+                    break
+                else:
+                    print(f"🔍 {encoding} decoded but content too short, trying next encoding")
+                    continue
+                    
             except (UnicodeDecodeError, UnicodeError) as e:
                 print(f"🔍 {encoding} decode failed: {e}")
                 continue
