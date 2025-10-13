@@ -237,7 +237,17 @@ def admin_upload():
         
         # 列名の自動検出
         fieldnames = csv_reader.fieldnames
-        print(f"CSV columns: {fieldnames}")
+        print(f"🔍 CSV columns: {fieldnames}")
+        print(f"🔍 CSV data preview (first 3 rows):")
+        preview_rows = []
+        for i, row in enumerate(csv_reader):
+            if i < 3:
+                preview_rows.append(row)
+                print(f"  Row {i+1}: {row}")
+            else:
+                break
+        # CSV readerをリセット
+        csv_reader = csv.DictReader(io.StringIO(csv_data))
         
         # 列名マッピング（テンプレート形式を優先）
         column_mapping = {}
@@ -270,17 +280,23 @@ def admin_upload():
                 elif '伝票日付' in field or 'date' in field_lower:
                     column_mapping['date'] = field
         
-        print(f"Column mapping: {column_mapping}")
+        print(f"🔍 Column mapping: {column_mapping}")
         
         items_dict = {}
-        for row in csv_reader:
+        processed_count = 0
+        skipped_count = 0
+        
+        for row_num, row in enumerate(csv_reader, 1):
             try:
                 # データの検証と変換
                 ingredient_name = row.get(column_mapping.get('ingredient_name', ''), '').strip()
                 unit_price = row.get(column_mapping.get('unit_price', ''), '').strip()
                 
+                print(f"🔍 Row {row_num}: ingredient_name='{ingredient_name}', unit_price='{unit_price}'")
+                
                 if not ingredient_name or not unit_price:
-                    print(f"Skipping row due to missing ingredient_name or unit_price: {row}")
+                    print(f"❌ Skipping row {row_num} due to missing ingredient_name or unit_price: {row}")
+                    skipped_count += 1
                     continue
                 
                 # 容量の自動抽出（商品名から）
@@ -309,19 +325,28 @@ def admin_upload():
                 # 同じ商品名でも取引先や日付が異なる場合は別エントリとして扱う
                 unique_key = f"{ingredient_name}_{supplier_name}_{transaction_date}"
                 items_dict[unique_key] = data
+                processed_count += 1
+                
+                print(f"✅ Processed row {row_num}: {ingredient_name} (容量:{capacity}{extracted_unit}, 単価:{unit_price}円)")
 
             except (ValueError, KeyError) as e:
-                print(f"Skipping row due to error: {e}. Row data: {row}")
+                print(f"❌ Skipping row {row_num} due to error: {e}. Row data: {row}")
+                skipped_count += 1
                 continue
+        
+        print(f"📊 Summary: processed={processed_count}, skipped={skipped_count}, unique_items={len(items_dict)}")
         
         items_to_upsert = list(items_dict.values())
         count = 0
         if items_to_upsert:
-            print(f"Upserting {len(items_to_upsert)} unique items in a batch.")
+            print(f"🔄 Upserting {len(items_to_upsert)} unique items in a batch.")
             result = supabase.table('cost_master').upsert(items_to_upsert, on_conflict='ingredient_name').execute()
             count = len(result.data)
+            print(f"✅ Successfully upserted {count} items to database.")
+        else:
+            print("❌ No items to upsert.")
 
-        return jsonify({"success": True, "count": count})
+        return jsonify({"success": True, "count": count, "processed": processed_count, "skipped": skipped_count})
     
     except Exception as e:
         print(f"アップロードエラー詳細: {e}")
