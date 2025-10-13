@@ -2122,28 +2122,37 @@ def handle_list_cost_command(event):
         ))
 
 
-def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, ingredients: list) -> str:
+def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, ingredients: list, recipe_id: Optional[str] = None) -> str:
     """
-    レシピをSupabaseに保存
+    レシピをSupabaseに保存または更新
     
     Args:
         recipe_name: 料理名
         servings: 何人前
         total_cost: 合計原価
         ingredients: 材料リスト（原価付き）
+        recipe_id: 更新対象のレシピID（オプション）
         
     Returns:
-        保存されたレシピのID
+        保存または更新されたレシピのID
     """
-    # レシピテーブルに保存
-    recipe_data = {
+    recipe_data_to_save = {
         'recipe_name': recipe_name,
         'servings': servings,
         'total_cost': total_cost
     }
     
-    recipe_response = supabase.table('recipes').insert(recipe_data).execute()
-    recipe_id = recipe_response.data[0]['id']
+    if recipe_id:
+        # 既存レシピを更新
+        supabase.table('recipes').update(recipe_data_to_save).eq('id', recipe_id).execute()
+        print(f"レシピを更新しました: {recipe_id}")
+        # 既存の材料を削除してから再挿入（シンプルにするため）
+        supabase.table('ingredients').delete().eq('recipe_id', recipe_id).execute()
+    else:
+        # 新規レシピを挿入
+        recipe_response = supabase.table('recipes').insert(recipe_data_to_save).execute()
+        recipe_id = recipe_response.data[0]['id']
+        print(f"レシピを保存しました: {recipe_id}")
     
     # 材料テーブルに保存
     for ingredient in ingredients:
@@ -2152,13 +2161,12 @@ def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, 
             'ingredient_name': ingredient['name'],
             'quantity': ingredient['quantity'],
             'unit': ingredient['unit'],
-            'cost': ingredient['cost'],
+            'cost': ingredient.get('cost'), # costはcalculate_recipe_costで設定される
             'capacity': ingredient.get('capacity', 1),
             'capacity_unit': ingredient.get('capacity_unit', '個')
         }
         supabase.table('ingredients').insert(ingredient_data).execute()
     
-    print(f"レシピを保存しました: {recipe_id}")
     return recipe_id
 
 
@@ -2579,11 +2587,23 @@ def handle_calculate_cost_postback(event, user_id):
         # 原価計算を実行
         cost_result = cost_calculator.calculate_recipe_cost(recipe_data['ingredients'])
         
+        # レシピをデータベースに保存または更新
+        # user_stateにrecipe_idがあれば更新、なければ新規保存
+        current_recipe_id = user_state.get('recipe_id')
+        recipe_id = save_recipe_to_supabase(
+            recipe_data['recipe_name'],
+            recipe_data['servings'],
+            cost_result['total_cost'],
+            cost_result['ingredients_with_cost'], # cost_resultから材料リストを取得
+            recipe_id=current_recipe_id
+        )
+
         # 会話状態を更新
         new_state = {
             'last_action': 'cost_calculated',
-            'recipe_data': recipe_data,
+            'recipe_data': recipe_data, # recipe_dataは更新されたもの
             'cost_result': cost_result,
+            'recipe_id': recipe_id, # recipe_idを保存
             'timestamp': datetime.now().isoformat()
         }
         set_user_state(user_id, new_state)
@@ -2656,11 +2676,13 @@ def handle_save_recipe_postback(event, user_id):
             return
         
         # レシピをデータベースに保存
+        current_recipe_id = user_state.get('recipe_id')
         recipe_id = save_recipe_to_supabase(
             recipe_data['recipe_name'],
             recipe_data['servings'],
             0,  # 原価計算なしの場合は0
-            recipe_data['ingredients']
+            recipe_data['ingredients'],
+            recipe_id=current_recipe_id
         )
         
         # 会話状態をクリア
@@ -2766,6 +2788,27 @@ def save_edited_ingredients():
         import traceback
         traceback.print_exc()
         return redirect(url_for('edit_recipe_ingredients', user_id=user_id, error_message=f"材料の保存中にエラーが発生しました: {str(e)}"))
+
+
+@app.route("/recipes", methods=['GET'])
+def view_recipes():
+    try:
+        # Supabaseからすべてのレシピを取得
+        recipes_response = supabase.table('recipes').select('*').order('created_at', desc=True).execute()
+        recipes_data = recipes_response.data
+
+        # 各レシピの材料を取得
+        for recipe in recipes_data:
+            ingredients_response = supabase.table('ingredients').select('*').eq('recipe_id', recipe['id']).execute()
+            recipe['ingredients'] = ingredients_response.data
+
+        return render_template('view_recipes.html', recipes=recipes_data)
+
+    except Exception as e:
+        print(f"❌ レシピ一覧表示エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return render_template('view_recipes.html', recipes=[], error_message=f"レシピの取得中にエラーが発生しました: {str(e)}")
 
 
 if __name__ == "__main__":

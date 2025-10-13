@@ -18,21 +18,17 @@ class CostCalculator:
             
             if not response.data:
                 print("原価マスターにデータがありません。")
-                self.cost_master = {}
+                self.cost_master = [] # Change to list
                 return
 
-            self.cost_master = {}
+            self.cost_master = [] # Change to list
             for row in response.data:
-                ingredient_name = row.get('ingredient_name')
-                if not ingredient_name:
-                    continue
-                
+                # 各行をそのままリストに追加
                 try:
-                    self.cost_master[ingredient_name] = {
-                        'unit_price': Decimal(str(row['unit_price'])) if row.get('unit_price') is not None else Decimal('0'),
-                        'capacity': Decimal(str(row['capacity'])) if row.get('capacity') is not None else Decimal('1'),
-                        'unit': row.get('unit', '個')
-                    }
+                    # Decimal型に変換しておく
+                    row['unit_price'] = Decimal(str(row['unit_price'])) if row.get('unit_price') is not None else Decimal('0')
+                    row['capacity'] = Decimal(str(row['capacity'])) if row.get('capacity') is not None else Decimal('1')
+                    self.cost_master.append(row)
                 except (InvalidOperation, TypeError) as e:
                     print(f"原価マスターの行変換エラー（スキップ）: {e}, Row: {row}")
             
@@ -40,41 +36,65 @@ class CostCalculator:
             
         except Exception as e:
             print(f"DBからの原価表読み込みエラー: {e}")
-            self.cost_master = {}
+            self.cost_master = [] # Change to list
 
     def calculate_ingredient_cost(self, ingredient_name: str, quantity: float, unit: str) -> Optional[Decimal]:
         """
         材料1つの原価を計算（新しい厳密な単位変換ロジック）
         """
-        # 原価マスターから最も近い材料名を見つける（部分一致）
-        best_match = None
-        for master_name in self.cost_master.keys():
-            if master_name in ingredient_name or ingredient_name in master_name:
-                best_match = master_name
+        # レシピの単位を正規化
+        normalized_recipe_unit = self._normalize_unit(unit)
+        
+        best_master_data = None
+        
+        # 1. 完全一致を優先 (材料名, 単位, 容量)
+        for master_data in self.cost_master:
+            normalized_master_unit = self._normalize_unit(master_data.get('unit', ''))
+            if (master_data.get('ingredient_name') == ingredient_name and
+                normalized_master_unit == normalized_recipe_unit and
+                master_data.get('capacity') == Decimal(str(quantity))): # Exact match on capacity too
+                best_master_data = master_data
                 break
         
-        if not best_match:
+        # 2. 材料名と単位が一致するものを探す（容量は後で考慮）
+        if not best_master_data:
+            for master_data in self.cost_master:
+                normalized_master_unit = self._normalize_unit(master_data.get('unit', ''))
+                if (master_data.get('ingredient_name') == ingredient_name and
+                    normalized_master_unit == normalized_recipe_unit):
+                    best_master_data = master_data
+                    # ここでは容量が一致しなくても一旦採用し、後で単位変換で調整を試みる
+                    break
+        
+        # 3. 材料名のみで部分一致（最も緩いマッチング）
+        if not best_master_data:
+            for master_data in self.cost_master:
+                master_name = master_data.get('ingredient_name', '')
+                if master_name in ingredient_name or ingredient_name in master_name:
+                    best_master_data = master_data
+                    break
+        
+        if not best_master_data:
             # print(f"警告: '{ingredient_name}' は原価表に存在しません。")
             return None
 
-        master_data = self.cost_master[best_match]
-        master_price = master_data['unit_price']
-        master_capacity = master_data['capacity']
-        master_unit = master_data['unit']
+        master_price = best_master_data['unit_price']
+        master_capacity = best_master_data['capacity']
+        master_unit = best_master_data['unit']
         
         # 数量をDecimalに変換
         decimal_quantity = Decimal(str(quantity))
 
         # 単位を正規化
-        unit_r = self._normalize_unit(unit) # レシピの単位
+        # unit_r = self._normalize_unit(unit) # Already done above
         unit_m = self._normalize_unit(master_unit) # 原価マスターの単位
 
         # カテゴリを取得
-        category_r = self._get_unit_category(unit_r)
+        category_r = self._get_unit_category(normalized_recipe_unit)
         category_m = self._get_unit_category(unit_m)
 
         # 1. 単位が完全に一致する場合
-        if unit_r == unit_m:
+        if normalized_recipe_unit == unit_m:
             if master_capacity == 0: return None
             cost = (decimal_quantity / master_capacity) * master_price
             return cost.quantize(Decimal('0.01'))
@@ -85,7 +105,7 @@ class CostCalculator:
             return None
 
         # 3. カテゴリが一致する場合（重量または容量）、基準単位に変換して計算
-        converted_quantity = self._convert_to_base_unit(decimal_quantity, unit_r)
+        converted_quantity = self._convert_to_base_unit(decimal_quantity, normalized_recipe_unit)
         converted_master_capacity = self._convert_to_base_unit(master_capacity, unit_m)
 
         if converted_quantity is None or converted_master_capacity is None or converted_master_capacity == 0:
