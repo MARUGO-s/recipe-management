@@ -37,40 +37,24 @@ class GroqRecipeParser:
             }
         """
         try:
-            prompt = f"""あなたは料理レシピの専門家です。以下のOCRテキストから材料情報を正確に抽出してください。
+            prompt = f"""以下のテキストからレシピ情報を抽出し、JSON形式で出力してください。
 
-【重要】材料名と分量が分離されている場合の処理：
-1. 「牛乳.」と「.250cc」→ 牛乳 250cc として結合
-2. 「バニラのさやl」と「.1/4本」→ バニラのさや 1/4本 として結合
-3. 「卵黄」と「.3個」→ 卵黄 3個 として結合
-4. 「砂糖」と「.60g」→ 砂糖 60g として結合
-5. 「卵黄」と「3個」（改行のみで分離）→ 卵黄 3個 として結合
-6. 「砂糖」と「60g」（改行のみで分離）→ 砂糖 60g として結合
+材料名と分量が分離されている場合は結合してください。
+例：「牛乳.」+「.250cc」→ 牛乳 250cc
 
-【材料解析例】
-- 牛乳 250cc → {{"name": "牛乳", "quantity": 250.0, "unit": "cc", "capacity": 1, "capacity_unit": "個"}}
-- バニラのさや 1/4本 → {{"name": "バニラのさや", "quantity": 0.25, "unit": "本", "capacity": 1, "capacity_unit": "個"}}
-- 卵黄 3個 → {{"name": "卵黄", "quantity": 3.0, "unit": "個", "capacity": 1, "capacity_unit": "個"}}
-- 砂糖 60g → {{"name": "砂糖", "quantity": 60.0, "unit": "g", "capacity": 1, "capacity_unit": "個"}}
-- バニラエッセンス 適量 → {{"name": "バニラエッセンス", "quantity": 0.1, "unit": "適量", "capacity": 1, "capacity_unit": "個"}}
+出力形式：
+{{"recipe_name": "料理名", "servings": 2, "ingredients": [{{"name": "材料名", "quantity": 数値, "unit": "単位", "capacity": 1, "capacity_unit": "個"}}]}}
 
-【処理ルール】
-- 材料名（文字のみ）の次の行が分量（数字+単位）の場合は必ず結合
-- 分数（1/4）は小数（0.25）に変換
-- 「適量」は0.1として処理
-- 必ず有効なJSON形式で出力
-
-【OCRテキスト】
+テキスト：
 {ocr_text}
 
-【JSON出力】
-"""
+JSON："""
             
             chat_completion = self.client.chat.completions.create(
                 messages=[
                     {
                         "role": "system",
-                        "content": "あなたは料理レシピの専門家です。OCRで抽出されたテキストから材料情報を正確に解析し、必ずJSON形式で出力します。材料名と分量が分離されていても正しく関連付けて解析します。"
+                        "content": "あなたはJSON出力の専門家です。必ず有効なJSON形式で出力します。"
                     },
                     {
                         "role": "user",
@@ -92,6 +76,13 @@ class GroqRecipeParser:
             elif "```" in response_text:
                 response_text = response_text.split("```")[1].split("```")[0].strip()
                 print(f"🔍 コードブロック抽出後: {response_text}")
+            
+            # JSONオブジェクトの開始と終了を探す
+            if "{" in response_text and "}" in response_text:
+                start = response_text.find("{")
+                end = response_text.rfind("}") + 1
+                response_text = response_text[start:end]
+                print(f"🔍 JSONオブジェクト抽出後: {response_text}")
             
             # JSONをパース
             recipe_data = json.loads(response_text)
