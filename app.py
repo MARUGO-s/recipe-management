@@ -63,8 +63,32 @@ supabase: Client = create_client(supabase_url, supabase_key)
 # 各種サービスの初期化
 azure_analyzer = AzureVisionAnalyzer()
 
-# AIプロバイダーの選択（環境変数で制御）
-ai_provider = os.getenv('AI_PROVIDER', 'groq')  # デフォルトはGroq
+# AIプロバイダーの選択（環境変数で制御、DBで永続化）
+def get_ai_provider():
+    """現在のAIプロバイダーを取得（DB優先、環境変数フォールバック）"""
+    try:
+        result = supabase.table('system_settings').select('value').eq('key', 'ai_provider').execute()
+        if result.data:
+            return result.data[0]['value']
+    except Exception as e:
+        print(f"DB設定取得エラー: {e}")
+    
+    # DB設定がない場合は環境変数を使用
+    return os.getenv('AI_PROVIDER', 'groq')
+
+def set_ai_provider(provider):
+    """AIプロバイダーをDBに保存"""
+    try:
+        supabase.table('system_settings').upsert({
+            'key': 'ai_provider',
+            'value': provider,
+            'updated_at': datetime.now().isoformat()
+        }).execute()
+        print(f"✅ AIプロバイダー設定をDBに保存: {provider}")
+    except Exception as e:
+        print(f"❌ AIプロバイダー設定保存エラー: {e}")
+
+ai_provider = get_ai_provider()
 print(f"🤖 AIプロバイダー: {ai_provider}")
 
 groq_parser = GroqRecipeParser(ai_provider=ai_provider)
@@ -811,13 +835,17 @@ def debug_switch_ai():
         if new_provider not in ['groq', 'gpt']:
             return jsonify({"error": "Invalid provider. Use 'groq' or 'gpt'"}), 400
         
+        # DBに設定を保存
+        set_ai_provider(new_provider)
+        
+        # グローバル変数を更新
         global groq_parser
         groq_parser = GroqRecipeParser(ai_provider=new_provider)
         
         return jsonify({
             "success": True,
             "new_provider": new_provider,
-            "message": f"AIプロバイダーを {new_provider} に切り替えました"
+            "message": f"AIプロバイダーを {new_provider} に切り替えました（DB保存済み）"
         })
         
     except Exception as e:
