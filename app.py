@@ -83,9 +83,14 @@ def get_ai_provider():
 def set_ai_provider(provider):
     """AIプロバイダーをDBに保存"""
     try:
-        supabase.table('system_settings').upsert({
+        # まず既存のレコードを削除
+        supabase.table('system_settings').delete().eq('key', 'ai_provider').execute()
+        
+        # 新しいレコードを挿入
+        supabase.table('system_settings').insert({
             'key': 'ai_provider',
             'value': provider,
+            'created_at': datetime.now().isoformat(),
             'updated_at': datetime.now().isoformat()
         }).execute()
         print(f"✅ AIプロバイダー設定をDBに保存: {provider}")
@@ -2953,8 +2958,8 @@ def update_ingredient_cost():
         if not ingredient_id or not unit_price or not ingredient_name:
             return jsonify({"success": False, "error": "必要なパラメータが不足しています"}), 400
         
-        # 分量と単位が提供されていない場合のみ既存の値を取得
-        if quantity is None or quantity == '':
+        # ユーザー入力がない場合のみ既存の値を取得（空文字列も有効な入力として扱う）
+        if quantity is None:
             ingredient_response = supabase.table('ingredients').select('quantity, unit').eq('id', ingredient_id).execute()
             
             if not ingredient_response.data:
@@ -2963,7 +2968,7 @@ def update_ingredient_cost():
             ingredient_data = ingredient_response.data[0]
             quantity = ingredient_data['quantity']
         
-        if unit is None or unit == '':
+        if unit is None:
             if 'ingredient_response' not in locals():
                 ingredient_response = supabase.table('ingredients').select('quantity, unit').eq('id', ingredient_id).execute()
                 if ingredient_response.data:
