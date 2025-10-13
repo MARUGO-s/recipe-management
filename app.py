@@ -23,6 +23,7 @@ from linebot.v3.messaging import (
     FlexMessage,
     FlexContainer
 )
+from typing import Optional # 追加
 
 # LINE UI機能は一時的に無効化（安定性を優先）
 LINE_UI_AVAILABLE = False
@@ -61,7 +62,12 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 # 各種サービスの初期化
 azure_analyzer = AzureVisionAnalyzer()
-groq_parser = GroqRecipeParser()
+
+# AIプロバイダーの選択（環境変数で制御）
+ai_provider = os.getenv('AI_PROVIDER', 'groq')  # デフォルトはGroq
+print(f"🤖 AIプロバイダー: {ai_provider}")
+
+groq_parser = GroqRecipeParser(ai_provider=ai_provider)
 cost_calculator = CostCalculator(supabase) # 修正: Supabaseクライアントを渡す
 cost_master_manager = CostMasterManager()
 
@@ -713,9 +719,9 @@ def debug_logs():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/debug/test-groq", methods=['GET'])
-def debug_test_groq():
-    """デバッグ用：Groqの動作テスト"""
+@app.route("/debug/test-ai", methods=['GET'])
+def debug_test_ai():
+    """デバッグ用：AIの動作テスト"""
     try:
         # テスト用のOCRテキスト
         test_ocr_text = """牛乳.
@@ -729,18 +735,19 @@ def debug_test_groq():
 バニラエッセンス ..
 適量"""
         
-        # Groqで解析
+        # AIで解析
         recipe_data = groq_parser.parse_recipe_text(test_ocr_text)
         
         return jsonify({
             "success": True,
+            "ai_provider": ai_provider,
             "test_ocr_text": test_ocr_text,
             "parsed_recipe": recipe_data,
             "debug_info": {
                 "ocr_text_length": len(test_ocr_text),
                 "recipe_data_type": type(recipe_data).__name__,
                 "recipe_data_is_none": recipe_data is None,
-                "groq_raw_response": "詳細はログで確認してください"
+                "ai_raw_response": "詳細はログで確認してください"
             }
         })
     except Exception as e:
@@ -793,6 +800,31 @@ def debug_test_groq_raw():
             "traceback": traceback.format_exc()
         }), 500
 
+
+@app.route("/debug/switch-ai", methods=['POST'])
+def debug_switch_ai():
+    """デバッグ用：AIプロバイダーの切り替え"""
+    try:
+        data = request.get_json() or {}
+        new_provider = data.get('provider', 'groq')
+        
+        if new_provider not in ['groq', 'gpt']:
+            return jsonify({"error": "Invalid provider. Use 'groq' or 'gpt'"}), 400
+        
+        global groq_parser
+        groq_parser = GroqRecipeParser(ai_provider=new_provider)
+        
+        return jsonify({
+            "success": True,
+            "new_provider": new_provider,
+            "message": f"AIプロバイダーを {new_provider} に切り替えました"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 @app.route("/debug/test-groq-step-by-step", methods=['GET'])
 def debug_test_groq_step_by_step():
@@ -2122,28 +2154,37 @@ def handle_list_cost_command(event):
         ))
 
 
-def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, ingredients: list) -> str:
+def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, ingredients: list, recipe_id: Optional[str] = None) -> str:
     """
-    レシピをSupabaseに保存
+    レシピをSupabaseに保存または更新
     
     Args:
         recipe_name: 料理名
         servings: 何人前
         total_cost: 合計原価
         ingredients: 材料リスト（原価付き）
+        recipe_id: 更新対象のレシピID（オプション）
         
     Returns:
-        保存されたレシピのID
+        保存または更新されたレシピのID
     """
-    # レシピテーブルに保存
-    recipe_data = {
+    recipe_data_to_save = {
         'recipe_name': recipe_name,
         'servings': servings,
         'total_cost': total_cost
     }
     
-    recipe_response = supabase.table('recipes').insert(recipe_data).execute()
-    recipe_id = recipe_response.data[0]['id']
+    if recipe_id:
+        # 既存レシピを更新
+        supabase.table('recipes').update(recipe_data_to_save).eq('id', recipe_id).execute()
+        print(f"レシピを更新しました: {recipe_id}")
+        # 既存の材料を削除してから再挿入（シンプルにするため）
+        supabase.table('ingredients').delete().eq('recipe_id', recipe_id).execute()
+    else:
+        # 新規レシピを挿入
+        recipe_response = supabase.table('recipes').insert(recipe_data_to_save).execute()
+        recipe_id = recipe_response.data[0]['id']
+        print(f"レシピを保存しました: {recipe_id}")
     
     # 材料テーブルに保存
     for ingredient in ingredients:
@@ -2152,13 +2193,12 @@ def save_recipe_to_supabase(recipe_name: str, servings: int, total_cost: float, 
             'ingredient_name': ingredient['name'],
             'quantity': ingredient['quantity'],
             'unit': ingredient['unit'],
-            'cost': ingredient['cost'],
+            'cost': ingredient.get('cost'), # costはcalculate_recipe_costで設定される
             'capacity': ingredient.get('capacity', 1),
             'capacity_unit': ingredient.get('capacity_unit', '個')
         }
         supabase.table('ingredients').insert(ingredient_data).execute()
     
-    print(f"レシピを保存しました: {recipe_id}")
     return recipe_id
 
 
@@ -2579,11 +2619,23 @@ def handle_calculate_cost_postback(event, user_id):
         # 原価計算を実行
         cost_result = cost_calculator.calculate_recipe_cost(recipe_data['ingredients'])
         
+        # レシピをデータベースに保存または更新
+        # user_stateにrecipe_idがあれば更新、なければ新規保存
+        current_recipe_id = user_state.get('recipe_id')
+        recipe_id = save_recipe_to_supabase(
+            recipe_data['recipe_name'],
+            recipe_data['servings'],
+            cost_result['total_cost'],
+            cost_result['ingredients_with_cost'], # cost_resultから材料リストを取得
+            recipe_id=current_recipe_id
+        )
+
         # 会話状態を更新
         new_state = {
             'last_action': 'cost_calculated',
-            'recipe_data': recipe_data,
+            'recipe_data': recipe_data, # recipe_dataは更新されたもの
             'cost_result': cost_result,
+            'recipe_id': recipe_id, # recipe_idを保存
             'timestamp': datetime.now().isoformat()
         }
         set_user_state(user_id, new_state)
@@ -2656,11 +2708,13 @@ def handle_save_recipe_postback(event, user_id):
             return
         
         # レシピをデータベースに保存
+        current_recipe_id = user_state.get('recipe_id')
         recipe_id = save_recipe_to_supabase(
             recipe_data['recipe_name'],
             recipe_data['servings'],
             0,  # 原価計算なしの場合は0
-            recipe_data['ingredients']
+            recipe_data['ingredients'],
+            recipe_id=current_recipe_id
         )
         
         # 会話状態をクリア
@@ -2755,17 +2809,45 @@ def save_edited_ingredients():
         user_state['recipe_data']['ingredients'] = edited_ingredients
         set_user_state(user_id, user_state)
 
-        # 成功メッセージを表示してLINEにリダイレクト
-        # LINEに直接リダイレクトするのではなく、成功メッセージを表示するページにリダイレクト
-        # または、LINEのFlexMessageで「原価計算する」ボタンなどを再度表示する
-        # ここでは、一時的に成功メッセージを表示するページにリダイレクト
-        return redirect(url_for('edit_recipe_ingredients', user_id=user_id, success_message="レシピ材料を更新しました！LINEに戻って原価計算または保存してください。"))
+        # LINEにプッシュメッセージを送信
+        try:
+            line_bot_api.push_message(PushMessageRequest(
+                to=user_id,
+                messages=[TextMessage(text="✅ レシピ材料を更新しました！LINEに戻って「原価計算する」または「そのまま登録」ボタンをタップしてください。")]
+            ))
+        except Exception as line_e:
+            print(f"❌ LINEプッシュメッセージ送信エラー: {line_e}")
+            # LINEメッセージ送信失敗時でも、Webページは成功と表示
+        
+        # 成功メッセージを表示するシンプルなページをレンダリング
+        return render_template('edit_success.html', user_id=user_id, success_message="レシピ材料を更新しました！LINEに戻って操作を続けてください。")
 
     except Exception as e:
         print(f"❌ 材料保存エラー: {e}")
         import traceback
         traceback.print_exc()
         return redirect(url_for('edit_recipe_ingredients', user_id=user_id, error_message=f"材料の保存中にエラーが発生しました: {str(e)}"))
+
+
+@app.route("/recipes", methods=['GET'])
+def view_recipes():
+    try:
+        # Supabaseからすべてのレシピを取得
+        recipes_response = supabase.table('recipes').select('*').order('created_at', desc=True).execute()
+        recipes_data = recipes_response.data
+
+        # 各レシピの材料を取得
+        for recipe in recipes_data:
+            ingredients_response = supabase.table('ingredients').select('*').eq('recipe_id', recipe['id']).execute()
+            recipe['ingredients'] = ingredients_response.data
+
+        return render_template('view_recipes.html', recipes=recipes_data)
+
+    except Exception as e:
+        print(f"❌ レシピ一覧表示エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return render_template('view_recipes.html', recipes=[], error_message=f"レシピの取得中にエラーが発生しました: {str(e)}")
 
 
 if __name__ == "__main__":
