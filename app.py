@@ -2704,7 +2704,7 @@ def save_edited_ingredients():
             if name_key not in request.form:
                 break
             
-                        name = request.form.get(name_key, '')
+            name = request.form.get(name_key, '')
             quantity = float(request.form.get(f'ingredients[{i}][quantity]', 0))
             unit = request.form.get(f'ingredients[{i}][unit]', '')
             capacity = float(request.form.get(f'ingredients[{i}][capacity]', 1))
