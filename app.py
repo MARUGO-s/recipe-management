@@ -2578,7 +2578,7 @@ def handle_edit_recipe_postback(event, user_id):
             return
         
         # 修正用のフォームURLを生成
-        form_url = f"https://recipe-management-nd00.onrender.com/recipe/edit?user_id={user_id}"
+        form_url = f"https://recipe-management-nd00.onrender.com/ingredient/form?user_id={user_id}"
         
         # 修正フォームへのリンクを送信
         line_bot_api.reply_message(ReplyMessageRequest(
