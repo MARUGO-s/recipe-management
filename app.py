@@ -256,14 +256,19 @@ def admin_upload():
         if not column_mapping:
             for field in fieldnames:
                 field_lower = field.lower().strip()
-                if 'ingredient' in field_lower or '材料' in field_lower or 'name' in field_lower:
+                # 新しいCSV形式の対応（［］付きの列名）
+                if '商品名' in field or 'ingredient' in field_lower or '材料' in field_lower or 'name' in field_lower:
                     column_mapping['ingredient_name'] = field
-                elif 'capacity' in field_lower or '容量' in field_lower:
+                elif '容量' in field or 'capacity' in field_lower:
                     column_mapping['capacity'] = field
-                elif 'unit' in field_lower and 'price' not in field_lower or '単位' in field_lower:
+                elif ('単位' in field or 'unit' in field_lower) and 'price' not in field_lower:
                     column_mapping['unit'] = field
-                elif 'price' in field_lower or '単価' in field_lower or 'cost' in field_lower:
+                elif '単価' in field or 'price' in field_lower or 'cost' in field_lower:
                     column_mapping['unit_price'] = field
+                elif '取引先名' in field or 'supplier' in field_lower:
+                    column_mapping['supplier'] = field
+                elif '伝票日付' in field or 'date' in field_lower:
+                    column_mapping['date'] = field
         
         print(f"Column mapping: {column_mapping}")
         
@@ -278,16 +283,32 @@ def admin_upload():
                     print(f"Skipping row due to missing ingredient_name or unit_price: {row}")
                     continue
                 
+                # 容量の自動抽出（商品名から）
+                capacity = 1.0
+                unit = row.get(column_mapping.get('unit', ''), '個').strip()
+                
+                # 商品名から容量を抽出
+                capacity, extracted_unit = extract_capacity_from_spec(ingredient_name, ingredient_name, unit)
+                
+                # 取引先情報の取得
+                supplier_name = row.get(column_mapping.get('supplier', ''), '').strip()
+                transaction_date = row.get(column_mapping.get('date', ''), '').strip()
+                
                 # Supabaseに挿入するデータを作成
                 data = {
                     'ingredient_name': ingredient_name,
-                    'capacity': float(row.get(column_mapping.get('capacity', ''), 1)),
-                    'unit': row.get(column_mapping.get('unit', ''), '個').strip(),
+                    'capacity': capacity,
+                    'unit': extracted_unit,
                     'unit_price': float(unit_price),
+                    'supplier_name': supplier_name,
+                    'transaction_date': transaction_date,
                     'updated_at': datetime.now().isoformat()
                 }
+                
                 # 辞書を使って重複を除去（後のものが優先される）
-                items_dict[ingredient_name] = data
+                # 同じ商品名でも取引先や日付が異なる場合は別エントリとして扱う
+                unique_key = f"{ingredient_name}_{supplier_name}_{transaction_date}"
+                items_dict[unique_key] = data
 
             except (ValueError, KeyError) as e:
                 print(f"Skipping row due to error: {e}. Row data: {row}")
