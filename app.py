@@ -1924,12 +1924,8 @@ def _format_ocr_text_for_display(ocr_text):
                 formatted_lines.append(f"• {line}")
             i += 1
     
-    # 最大15行まで表示
-    display_lines = formatted_lines[:15]
-    result = '\n'.join(display_lines)
-    
-    if len(formatted_lines) > 15:
-        result += f"\n... 他{len(formatted_lines) - 15}行"
+    # すべての行を表示
+    result = '\n'.join(formatted_lines)
     
     return result
 
