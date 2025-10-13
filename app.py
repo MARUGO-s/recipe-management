@@ -2661,7 +2661,12 @@ def handle_calculate_cost_postback(event, user_id):
             return
         
         # 原価計算を実行
+        print(f"🔍 原価計算開始: {len(recipe_data['ingredients'])}個の材料")
+        for i, ingredient in enumerate(recipe_data['ingredients']):
+            print(f"  材料 {i}: {ingredient['name']} {ingredient['quantity']}{ingredient['unit']} (単価: {ingredient.get('unit_price', 'なし')})")
+        
         cost_result = cost_calculator.calculate_recipe_cost(recipe_data['ingredients'])
+        print(f"🔍 原価計算結果: 合計 {cost_result['total_cost']:.2f}円")
         
         # レシピをデータベースに保存または更新
         # user_stateにrecipe_idがあれば更新、なければ新規保存
@@ -2853,11 +2858,18 @@ def save_edited_ingredients():
         user_state['recipe_data']['ingredients'] = edited_ingredients
         set_user_state(user_id, user_state)
 
-        # LINEにプッシュメッセージを送信
+        # 更新されたレシピデータでFlexMessageを作成してLINEに送信
         try:
+            # 更新されたレシピデータを取得
+            updated_recipe_data = user_state['recipe_data']
+            
+            # 更新されたFlexMessageを送信
+            create_recipe_review_flex_message(updated_recipe_data, user_id)
+            
+            # 追加でテキストメッセージも送信
             line_bot_api.push_message(PushMessageRequest(
                 to=user_id,
-                messages=[TextMessage(text="✅ レシピ材料を更新しました！LINEに戻って「原価計算する」または「そのまま登録」ボタンをタップしてください。")]
+                messages=[TextMessage(text="✅ レシピ材料を更新しました！更新された内容を確認してください。")]
             ))
         except Exception as line_e:
             print(f"❌ LINEプッシュメッセージ送信エラー: {line_e}")

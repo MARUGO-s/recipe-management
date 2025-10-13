@@ -44,9 +44,45 @@
     <div class="container">
         <h1>✅ 更新が完了しました！</h1>
         <p>{{ success_message }}</p>
-        <p>LINEアプリに戻って操作を続けてください。</p>
-        <!-- LINEアプリに戻るためのボタンやリンク（LINEの仕様により直接アプリを開くのは難しい場合がある） -->
-        <!-- <a href="line://" class="btn btn-primary">LINEアプリに戻る</a> -->
+        
+        <div class="alert alert-success">
+            <h5>📱 LINEでの次の操作</h5>
+            <p>LINEに戻ると、以下のボタンが表示されます：</p>
+            <ul style="text-align: left; display: inline-block;">
+                <li><strong>💰 原価計算する</strong> - 更新された材料で原価を計算</li>
+                <li><strong>💾 そのまま登録</strong> - レシピをデータベースに保存</li>
+                <li><strong>✏️ 材料を修正</strong> - 再度編集フォームを開く</li>
+            </ul>
+        </div>
+        
+        <div class="mt-4">
+            <button class="btn btn-primary btn-lg" onclick="closeWindow()">📱 LINEに戻る</button>
+        </div>
     </div>
+    
+    <script>
+        // ウィンドウを閉じる（×ボタンと同じ機能）
+        function closeWindow() {
+            try {
+                // ブラウザタブを閉じる
+                if (window.opener) {
+                    // ポップアップで開かれた場合
+                    window.close();
+                } else {
+                    // 通常のタブの場合
+                    if (navigator.userAgent.match(/iPhone|iPad|iPod|Android/i)) {
+                        // モバイルの場合：LINEアプリに戻る
+                        window.location.href = 'line://';
+                    } else {
+                        // PCの場合：ブラウザタブを閉じる
+                        window.close();
+                    }
+                }
+            } catch (e) {
+                // エラーの場合はLINEアプリに戻る
+                window.location.href = 'line://';
+            }
+        }
+    </script>
 </body>
 </html>
