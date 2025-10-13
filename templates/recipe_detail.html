@@ -3,187 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>レシピ詳細 - {{ recipe.recipe_name }}</title>
+    <title>{{ recipe.recipe_name }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #212529;
-            color: #e9ecef;
-            padding-top: 20px;
-            padding-bottom: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+            padding: 15px;
+            font-size: 14px;
+            line-height: 1.4;
         }
         .container {
-            max-width: 1000px;
-            background-color: #343a40;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            max-width: 800px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        h1 {
-            color: #00bcd4;
-            text-align: center;
-            margin-bottom: 30px;
-            font-weight: 600;
-        }
-        .recipe-header {
-            background: linear-gradient(135deg, #495057 0%, #6c757d 100%);
-            border-radius: 10px;
-            padding: 25px;
-            margin-bottom: 30px;
-            border: 1px solid #6c757d;
+        .header {
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
         }
         .recipe-title {
-            color: #f8f9fa;
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 10px;
+            color: #212529;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0 0 8px 0;
         }
         .recipe-meta {
-            color: #ced4da;
-            font-size: 1.1rem;
+            color: #6c757d;
+            font-size: 0.9rem;
         }
-        .ingredient-card {
-            background-color: #495057;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
-            border: 1px solid #6c757d;
-            transition: transform 0.2s, box-shadow 0.2s;
+        .ingredients-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
         }
-        .ingredient-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        .ingredients-table th {
+            background-color: #f8f9fa;
+            color: #495057;
+            font-weight: 600;
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 0.85rem;
+        }
+        .ingredients-table td {
+            padding: 6px 12px;
+            border-bottom: 1px solid #f1f3f4;
+            font-size: 0.9rem;
+        }
+        .ingredients-table tr:hover {
+            background-color: #f8f9fa;
         }
         .ingredient-name {
-            color: #f8f9fa;
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 8px;
+            font-weight: 500;
+            color: #212529;
         }
-        .ingredient-details {
-            color: #ced4da;
-            font-size: 0.95rem;
+        .ingredient-quantity {
+            color: #495057;
+            font-family: monospace;
         }
-        .cost-badge {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-left: 10px;
-        }
-        .total-cost {
-            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            text-align: center;
-            font-size: 1.3rem;
-            font-weight: 700;
-            margin-top: 20px;
-        }
-        .back-btn {
-            background-color: #00bcd4;
-            border-color: #00bcd4;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            text-decoration: none;
-            display: inline-block;
-            margin-bottom: 20px;
-            transition: background-color 0.2s;
-        }
-        .back-btn:hover {
-            background-color: #0097a7;
-            border-color: #0097a7;
-            color: white;
+        .cost {
+            color: #28a745;
+            font-weight: 500;
+            text-align: right;
         }
         .no-cost {
-            color: #ffc107;
+            color: #dc3545;
             font-style: italic;
+            text-align: right;
         }
-        .ingredient-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 15px;
+        .total-cost {
+            background-color: #e9ecef;
+            padding: 12px 15px;
+            border-radius: 6px;
+            text-align: center;
+            margin-top: 15px;
+        }
+        .total-cost .amount {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #28a745;
+        }
+        .total-cost .per-serving {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+        .back-btn {
+            background-color: #6c757d;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+        .back-btn:hover {
+            background-color: #5a6268;
+            color: white;
         }
         .section-title {
-            color: #81c784;
-            font-size: 1.3rem;
+            color: #495057;
+            font-size: 1.1rem;
             font-weight: 600;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #81c784;
-            padding-bottom: 5px;
+            margin-bottom: 12px;
+        }
+        @media (max-width: 576px) {
+            body { padding: 10px; }
+            .container { padding: 15px; }
+            .recipe-title { font-size: 1.3rem; }
+            .ingredients-table th,
+            .ingredients-table td { padding: 4px 8px; font-size: 0.8rem; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <a href="javascript:history.back()" class="back-btn">
-            <i class="fas fa-arrow-left me-2"></i>戻る
+            ← 戻る
         </a>
         
-        <div class="recipe-header">
+        <div class="header">
             <div class="recipe-title">{{ recipe.recipe_name }}</div>
             <div class="recipe-meta">
-                <i class="fas fa-users me-2"></i>{{ recipe.servings }}人前
-                <span class="ms-4">
-                    <i class="fas fa-calendar me-2"></i>作成日: {{ recipe.created_at.split('T')[0] }}
-                </span>
-                {% if recipe.total_cost > 0 %}
-                <span class="ms-4">
-                    <i class="fas fa-yen-sign me-2"></i>合計原価: ¥{{ "%.2f"|format(recipe.total_cost) }}
-                </span>
-                {% endif %}
+                {{ recipe.servings }}人前 • {{ recipe.created_at.split('T')[0] }}
             </div>
         </div>
 
-        <div class="section-title">
-            <i class="fas fa-list-ul me-2"></i>材料リスト
-        </div>
+        <div class="section-title">材料</div>
         
-        <div class="ingredient-grid">
-            {% for ingredient in ingredients %}
-            <div class="ingredient-card">
-                <div class="ingredient-name">
-                    {{ ingredient.ingredient_name }}
-                    {% if ingredient.cost and ingredient.cost > 0 %}
-                        <span class="cost-badge">¥{{ "%.2f"|format(ingredient.cost) }}</span>
-                    {% else %}
-                        <span class="cost-badge no-cost">未登録</span>
-                    {% endif %}
-                </div>
-                <div class="ingredient-details">
-                    <div><strong>分量:</strong> {{ ingredient.quantity }}{{ ingredient.unit }}</div>
-                    {% if ingredient.capacity and ingredient.capacity > 1 %}
-                    <div><strong>容量:</strong> {{ ingredient.capacity }}{{ ingredient.capacity_unit }}</div>
-                    {% endif %}
-                    {% if ingredient.cost and ingredient.cost > 0 %}
-                    <div><strong>原価:</strong> ¥{{ "%.2f"|format(ingredient.cost) }}</div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
+        <table class="ingredients-table">
+            <thead>
+                <tr>
+                    <th>材料名</th>
+                    <th>分量</th>
+                    <th style="text-align: right;">原価</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ingredient in ingredients %}
+                <tr>
+                    <td class="ingredient-name">{{ ingredient.ingredient_name }}</td>
+                    <td class="ingredient-quantity">{{ ingredient.quantity }}{{ ingredient.unit }}</td>
+                    <td class="{% if ingredient.cost and ingredient.cost > 0 %}cost{% else %}no-cost{% endif %}">
+                        {% if ingredient.cost and ingredient.cost > 0 %}
+                            ¥{{ "%.0f"|format(ingredient.cost) }}
+                        {% else %}
+                            未登録
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
 
         {% if recipe.total_cost > 0 %}
         <div class="total-cost">
-            <i class="fas fa-calculator me-2"></i>
-            合計原価: ¥{{ "%.2f"|format(recipe.total_cost) }}
-            <div style="font-size: 0.9rem; margin-top: 5px; opacity: 0.9;">
-                1人前あたり: ¥{{ "%.2f"|format(recipe.total_cost / recipe.servings) }}
-            </div>
+            <div class="amount">合計 ¥{{ "%.0f"|format(recipe.total_cost) }}</div>
+            <div class="per-serving">1人前 ¥{{ "%.0f"|format(recipe.total_cost / recipe.servings) }}</div>
         </div>
         {% endif %}
-
-        <div class="text-center mt-4">
-            <a href="javascript:history.back()" class="back-btn">
-                <i class="fas fa-arrow-left me-2"></i>戻る
-            </a>
-        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

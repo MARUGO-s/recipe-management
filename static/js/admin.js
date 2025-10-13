@@ -581,14 +581,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 ${data.recipes?.map(item => `
                                                     <tr>
                                                         <td>
-                                                            <a href="/recipe/${item.id}" target="_blank" style="color: #81c784; text-decoration: none;">
-                                                                <i class="fas fa-eye me-1"></i>${item.recipe_name || '-'}
+                                                            <a href="/recipe/${item.id}" target="_blank" style="color: #81c784; text-decoration: none; font-size: 0.9rem;">
+                                                                ${item.recipe_name || '-'}
                                                             </a>
                                                         </td>
-                                                        <td>${item.servings || 0}人前</td>
-                                                        <td>${new Date(item.created_at).toLocaleDateString()}</td>
+                                                        <td style="font-size: 0.85rem;">${item.servings || 0}人前</td>
+                                                        <td style="font-size: 0.85rem; color: #6c757d;">${new Date(item.created_at).toLocaleDateString('ja-JP')}</td>
                                                     </tr>
-                                                `).join('') || '<tr><td colspan="3" class="text-center">データなし</td></tr>'}
+                                                `).join('') || '<tr><td colspan="3" class="text-center" style="font-size: 0.85rem; color: #6c757d;">データなし</td></tr>'}
                                             </tbody>
                                         </table>
                                     </div>
