@@ -39,7 +39,7 @@ class GroqRecipeParser:
         try:
             prompt = f"""以下のテキストからレシピ情報を抽出し、JSON形式で出力してください。
 
-材料名と分量が別々の行に分かれている場合があります。次の行を確認して結合してください。
+レシピ名と人数（servings）は必ず含めてください。材料名と分量が別々の行に分かれている場合があります。次の行を確認して結合してください。
 例：
 - 「ミント」の次の行が「適量」→ ミント 適量
 - 「牛乳」の次の行が「150cc」→ 牛乳 150cc
@@ -97,7 +97,13 @@ JSON："""
             
             print(f"✅ JSON解析成功: {recipe_data}")
             
-            # 不足しているフィールドを自動補完
+            # 不足しているトップレベルフィールドを自動補完
+            if 'recipe_name' not in recipe_data or not recipe_data['recipe_name']:
+                recipe_data['recipe_name'] = "不明なレシピ"
+            if 'servings' not in recipe_data or not isinstance(recipe_data['servings'], int) or recipe_data['servings'] <= 0:
+                recipe_data['servings'] = 1
+            
+            # 不足している材料フィールドを自動補完
             for ingredient in recipe_data.get('ingredients', []):
                 if 'capacity' not in ingredient:
                     ingredient['capacity'] = 1
