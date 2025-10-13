@@ -1255,12 +1255,13 @@ def handle_image_message(event):
 
         # ステップ2: Groqでレシピ構造化
         print(f"🔍 Groq解析開始...")
-        print(f"📄 OCRテキスト (最初の500文字):\n{ocr_text[:500]}")
+        print(f"📄 OCRテキスト (全{len(ocr_text)}文字):\n{repr(ocr_text)}")
         
         recipe_data = groq_parser.parse_recipe_text(ocr_text)
         
         if not recipe_data:
             print(f"❌ Groq解析失敗: recipe_dataがNone")
+            print(f"🔍 失敗したOCRテキスト (全{len(ocr_text)}文字):\n{repr(ocr_text)}")
             # OCRテキストを整形して表示
             formatted_text = _format_ocr_text_for_display(ocr_text)
             line_bot_api.push_message(PushMessageRequest(
