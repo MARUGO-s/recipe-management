@@ -127,13 +127,24 @@ def read_file_data(file):
         
         if filename.endswith('.csv'):
             # CSVファイルの読み込み（複数エンコーディング対応）
-            try:
-                # まずUTF-8で試行
-                csv_data = file.read().decode('utf-8-sig')
-            except UnicodeDecodeError:
-                # Shift-JISで試行
-                file.seek(0)
-                csv_data = file.read().decode('shift_jis')
+            file_content = file.read()
+            csv_data = None
+            
+            # 複数のエンコーディングを試行
+            encodings = ['utf-8-sig', 'utf-8', 'shift_jis', 'cp932', 'euc-jp', 'iso-2022-jp']
+            
+            for encoding in encodings:
+                try:
+                    file.seek(0)
+                    csv_data = file_content.decode(encoding)
+                    print(f"🔍 CSV file decoded as {encoding}: {len(csv_data)} characters")
+                    break
+                except (UnicodeDecodeError, UnicodeError) as e:
+                    print(f"🔍 {encoding} decode failed: {e}")
+                    continue
+            
+            if csv_data is None:
+                raise ValueError(f"ファイルのエンコーディングが判別できません。試行したエンコーディング: {', '.join(encodings)}")
             
             csv_reader = csv.DictReader(io.StringIO(csv_data))
             data_rows = list(csv_reader)
@@ -442,10 +453,17 @@ def admin_upload():
         return jsonify({"success": True, "count": count, "processed": processed_count, "skipped": skipped_count})
     
     except Exception as e:
-        print(f"アップロードエラー詳細: {e}")
+        print(f"❌ アップロードエラー詳細: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": f"アップロードに失敗しました: {str(e)}"}), 500
+        
+        # エンコーディングエラーの場合は特別なメッセージ
+        if "エンコーディング" in str(e) or "decode" in str(e):
+            error_message = f"ファイルのエンコーディングエラー: {str(e)}。ファイルが正しい形式か確認してください。"
+        else:
+            error_message = f"アップロードに失敗しました: {str(e)}"
+        
+        return jsonify({"error": error_message}), 500
 
 
 @app.route("/admin/upload-transaction", methods=['POST'])
@@ -458,27 +476,24 @@ def admin_upload_transaction():
         if not file.filename.lower().endswith('.csv'):
             return jsonify({"error": "CSVファイルのみアップロード可能です"}), 400
 
-        try:
-            # まずUTF-8で試行
-            csv_data = file.read().decode('utf-8-sig')
-            print(f"🔍 CSV file decoded as UTF-8: {len(csv_data)} characters")
-        except UnicodeDecodeError as e:
-            print(f"🔍 UTF-8 decode failed: {e}")
+        # 複数のエンコーディングを試行
+        file_content = file.read()
+        csv_data = None
+        
+        encodings = ['utf-8-sig', 'utf-8', 'shift_jis', 'cp932', 'euc-jp', 'iso-2022-jp']
+        
+        for encoding in encodings:
             try:
-                # Shift-JISで試行
                 file.seek(0)
-                csv_data = file.read().decode('shift_jis')
-                print(f"🔍 CSV file decoded as Shift-JIS: {len(csv_data)} characters")
-            except UnicodeDecodeError as e2:
-                print(f"🔍 Shift-JIS decode failed: {e2}")
-                try:
-                    # CP932で試行
-                    file.seek(0)
-                    csv_data = file.read().decode('cp932')
-                    print(f"🔍 CSV file decoded as CP932: {len(csv_data)} characters")
-                except UnicodeDecodeError as e3:
-                    print(f"❌ All encoding attempts failed: {e3}")
-                    raise ValueError(f"ファイルのエンコーディングが判別できません。UTF-8、Shift-JIS、CP932を試行しましたが、すべて失敗しました。")
+                csv_data = file_content.decode(encoding)
+                print(f"🔍 CSV file decoded as {encoding}: {len(csv_data)} characters")
+                break
+            except (UnicodeDecodeError, UnicodeError) as e:
+                print(f"🔍 {encoding} decode failed: {e}")
+                continue
+        
+        if csv_data is None:
+            raise ValueError(f"ファイルのエンコーディングが判別できません。試行したエンコーディング: {', '.join(encodings)}")
 
         csv_reader = csv.reader(io.StringIO(csv_data))
         
