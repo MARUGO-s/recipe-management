@@ -1282,7 +1282,20 @@ def handle_image_message(event):
         print(f"🔍 Groq解析開始...")
         print(f"📄 OCRテキスト (全{len(ocr_text)}文字):\n{repr(ocr_text)}")
         
-        recipe_data = groq_parser.parse_recipe_text(ocr_text)
+        # OCRテキストの前処理（余分な文字を除去）
+        cleaned_ocr_text = ocr_text.strip()
+        # 末尾の余分な文字を除去
+        if cleaned_ocr_text.endswith('料理を楽しむにあたって'):
+            cleaned_ocr_text = cleaned_ocr_text.replace('料理を楽しむにあたって', '').strip()
+        # 末尾の数字を除去
+        if cleaned_ocr_text.endswith('\n6'):
+            cleaned_ocr_text = cleaned_ocr_text.replace('\n6', '').strip()
+        elif cleaned_ocr_text.endswith('6'):
+            cleaned_ocr_text = cleaned_ocr_text.replace('6', '').strip()
+        
+        print(f"🧹 前処理後のOCRテキスト (全{len(cleaned_ocr_text)}文字):\n{repr(cleaned_ocr_text)}")
+        
+        recipe_data = groq_parser.parse_recipe_text(cleaned_ocr_text)
         
         if not recipe_data:
             print(f"❌ Groq解析失敗: recipe_dataがNone")
