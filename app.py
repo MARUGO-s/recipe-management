@@ -69,12 +69,15 @@ def get_ai_provider():
     try:
         result = supabase.table('system_settings').select('value').eq('key', 'ai_provider').execute()
         if result.data:
+            print(f"📊 DB設定からAIプロバイダーを取得: {result.data[0]['value']}")
             return result.data[0]['value']
     except Exception as e:
         print(f"DB設定取得エラー: {e}")
     
     # DB設定がない場合は環境変数を使用
-    return os.getenv('AI_PROVIDER', 'groq')
+    env_provider = os.getenv('AI_PROVIDER', 'groq')
+    print(f"📊 環境変数からAIプロバイダーを取得: {env_provider}")
+    return env_provider
 
 def set_ai_provider(provider):
     """AIプロバイダーをDBに保存"""
@@ -88,6 +91,7 @@ def set_ai_provider(provider):
     except Exception as e:
         print(f"❌ AIプロバイダー設定保存エラー: {e}")
 
+# Supabaseクライアントが初期化された後にAIプロバイダーを取得
 ai_provider = get_ai_provider()
 print(f"🤖 AIプロバイダー: {ai_provider}")
 
