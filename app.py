@@ -1283,22 +1283,30 @@ def handle_image_message(event):
         print(f"📄 OCRテキスト (全{len(ocr_text)}文字):\n{repr(ocr_text)}")
         
         # OCRテキストの前処理（余分な文字を除去）
+        print(f"🔧 前処理開始...")
         cleaned_ocr_text = ocr_text.strip()
+        print(f"📝 元のOCRテキスト長: {len(cleaned_ocr_text)}")
         
-        # 末尾の余分な文字を除去（より柔軟に）
+        # 強制的に余分な文字を除去
         if '料理を楽しむにあたって' in cleaned_ocr_text:
             cleaned_ocr_text = cleaned_ocr_text.split('料理を楽しむにあたって')[0].strip()
+            print(f"✅ '料理を楽しむにあたって' を除去")
         
-        # 末尾の数字を除去（より柔軟に）
+        # 強制的に末尾の数字を除去
         if '\n6' in cleaned_ocr_text:
             cleaned_ocr_text = cleaned_ocr_text.split('\n6')[0].strip()
+            print(f"✅ '\\n6' を除去")
         elif cleaned_ocr_text.endswith('6'):
             cleaned_ocr_text = cleaned_ocr_text[:-1].strip()
+            print(f"✅ 末尾の '6' を除去")
         
         # 連続する改行を単一の改行に統一
-        cleaned_ocr_text = '\n'.join([line.strip() for line in cleaned_ocr_text.split('\n') if line.strip()])
+        lines = [line.strip() for line in cleaned_ocr_text.split('\n') if line.strip()]
+        cleaned_ocr_text = '\n'.join(lines)
+        print(f"✅ 改行を正規化: {len(lines)}行")
         
-        print(f"🧹 前処理後のOCRテキスト (全{len(cleaned_ocr_text)}文字):\n{repr(cleaned_ocr_text)}")
+        print(f"🧹 前処理完了: {len(cleaned_ocr_text)}文字")
+        print(f"📄 前処理後のOCRテキスト:\n{repr(cleaned_ocr_text)}")
         
         recipe_data = groq_parser.parse_recipe_text(cleaned_ocr_text)
         
