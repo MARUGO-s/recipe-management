@@ -8,33 +8,36 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: #f8f9fa;
-            color: #212529;
-            padding: 15px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #e0e0e0;
+            padding: 20px;
             font-size: 14px;
             line-height: 1.4;
         }
         .container {
             max-width: 800px;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            background: rgba(30, 30, 46, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 30px;
         }
         .header {
-            border-bottom: 2px solid #e9ecef;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
             padding-bottom: 15px;
             margin-bottom: 20px;
         }
         .recipe-title {
-            color: #212529;
+            color: #64b5f6;
             font-size: 1.5rem;
             font-weight: 600;
             margin: 0 0 8px 0;
         }
         .recipe-meta {
-            color: #6c757d;
+            color: #b0b0b0;
             font-size: 0.9rem;
         }
         .ingredients-table {
@@ -43,76 +46,156 @@
             margin-bottom: 20px;
         }
         .ingredients-table th {
-            background-color: #f8f9fa;
-            color: #495057;
+            background: rgba(40, 40, 60, 0.8);
+            color: #e0e0e0;
             font-weight: 600;
             padding: 8px 12px;
             text-align: left;
-            border-bottom: 1px solid #dee2e6;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             font-size: 0.85rem;
         }
         .ingredients-table td {
             padding: 6px 12px;
-            border-bottom: 1px solid #f1f3f4;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             font-size: 0.9rem;
         }
         .ingredients-table tr:hover {
-            background-color: #f8f9fa;
+            background: rgba(40, 40, 60, 0.3);
         }
         .ingredient-name {
             font-weight: 500;
-            color: #212529;
+            color: #e0e0e0;
         }
         .ingredient-quantity {
-            color: #495057;
+            color: #b0b0b0;
             font-family: monospace;
         }
         .cost {
-            color: #28a745;
+            color: #81c784;
             font-weight: 500;
             text-align: right;
         }
         .no-cost {
-            color: #dc3545;
+            color: #ffab91;
             font-style: italic;
             text-align: right;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: all 0.3s ease;
+        }
+        .no-cost:hover {
+            background: rgba(255, 171, 145, 0.2);
+            color: #ffccbc;
         }
         .total-cost {
-            background-color: #e9ecef;
-            padding: 12px 15px;
-            border-radius: 6px;
+            background: rgba(40, 40, 60, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 12px;
             text-align: center;
-            margin-top: 15px;
+            margin-top: 20px;
         }
         .total-cost .amount {
             font-size: 1.2rem;
             font-weight: 600;
-            color: #28a745;
+            color: #81c784;
         }
         .total-cost .per-serving {
             font-size: 0.85rem;
-            color: #6c757d;
-            margin-top: 2px;
+            color: #b0b0b0;
+            margin-top: 5px;
         }
         .back-btn {
-            background-color: #6c757d;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 4px;
+            background: rgba(60, 60, 80, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e0e0e0;
+            padding: 8px 15px;
+            border-radius: 10px;
             text-decoration: none;
             font-size: 0.85rem;
             display: inline-block;
             margin-bottom: 15px;
+            transition: all 0.3s ease;
         }
         .back-btn:hover {
-            background-color: #5a6268;
-            color: white;
+            background: rgba(60, 60, 80, 0.9);
+            color: #e0e0e0;
+            transform: translateY(-1px);
         }
         .section-title {
-            color: #495057;
+            color: #64b5f6;
             font-size: 1.1rem;
             font-weight: 600;
-            margin-bottom: 12px;
+            margin-bottom: 15px;
+        }
+        .modal-content {
+            background: rgba(30, 30, 46, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .modal-header {
+            background: rgba(40, 40, 60, 0.8);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px 20px 0 0;
+        }
+        .modal-title {
+            color: #64b5f6;
+            font-weight: 600;
+        }
+        .modal-body {
+            background: rgba(30, 30, 46, 0.95);
+            color: #e0e0e0;
+        }
+        .form-label {
+            color: #e0e0e0;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .form-control {
+            background: rgba(40, 40, 60, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: #e0e0e0;
+            padding: 10px 15px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        .form-control:focus {
+            background: rgba(40, 40, 60, 0.9);
+            border-color: #64b5f6;
+            box-shadow: 0 0 0 0.2rem rgba(100, 181, 246, 0.25);
+            color: #e0e0e0;
+        }
+        .form-control::placeholder {
+            color: #888;
+        }
+        .btn-primary {
+            background: linear-gradient(45deg, #64b5f6, #42a5f5);
+            border: none;
+            border-radius: 12px;
+            padding: 10px 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(45deg, #42a5f5, #2196f3);
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(100, 181, 246, 0.4);
+        }
+        .btn-secondary {
+            background: rgba(60, 60, 80, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e0e0e0;
+            border-radius: 12px;
+            padding: 10px 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background: rgba(60, 60, 80, 0.9);
+            color: #e0e0e0;
         }
         @media (max-width: 576px) {
             body { padding: 10px; }
@@ -151,7 +234,11 @@
                 <tr>
                     <td class="ingredient-name">{{ ingredient.ingredient_name }}</td>
                     <td class="ingredient-quantity">{{ ingredient.quantity }}{{ ingredient.unit }}</td>
-                    <td class="{% if ingredient.cost and ingredient.cost > 0 %}cost{% else %}no-cost{% endif %}">
+                    <td class="{% if ingredient.cost and ingredient.cost > 0 %}cost{% else %}no-cost{% endif %}" 
+                        {% if not (ingredient.cost and ingredient.cost > 0) %}
+                        onclick="openCostModal('{{ ingredient.ingredient_name }}', '{{ ingredient.quantity }}', '{{ ingredient.unit }}', '{{ ingredient.id }}')"
+                        title="クリックして原価を登録"
+                        {% endif %}>
                         {% if ingredient.cost and ingredient.cost > 0 %}
                             ¥{{ "%.0f"|format(ingredient.cost) }}
                         {% else %}
@@ -171,6 +258,109 @@
         {% endif %}
     </div>
 
+    <!-- 原価登録モーダル -->
+    <div class="modal fade" id="costModal" tabindex="-1" aria-labelledby="costModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="costModalLabel">原価登録</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="costForm">
+                        <input type="hidden" id="ingredientId" name="ingredient_id">
+                        <div class="mb-3">
+                            <label for="ingredientName" class="form-label">材料名</label>
+                            <input type="text" class="form-control" id="ingredientName" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="ingredientQuantity" class="form-label">分量</label>
+                            <input type="text" class="form-control" id="ingredientQuantity" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="unitPrice" class="form-label">単価 (円)</label>
+                            <input type="number" class="form-control" id="unitPrice" name="unit_price" step="0.01" min="0" required>
+                            <div class="form-text">この材料の基準単位あたりの価格を入力してください</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="capacity" class="form-label">容量</label>
+                            <input type="number" class="form-control" id="capacity" name="capacity" step="0.01" min="0.01" value="1" required>
+                            <div class="form-text">基準となる容量を入力してください（例：500g、1L）</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="capacityUnit" class="form-label">容量単位</label>
+                            <input type="text" class="form-control" id="capacityUnit" name="capacity_unit" value="個" required>
+                            <div class="form-text">容量の単位を入力してください（例：g、L、個）</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCost()">登録</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let costModal;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            costModal = new bootstrap.Modal(document.getElementById('costModal'));
+        });
+
+        function openCostModal(ingredientName, quantity, unit, ingredientId) {
+            document.getElementById('ingredientName').value = ingredientName;
+            document.getElementById('ingredientQuantity').value = quantity + unit;
+            document.getElementById('ingredientId').value = ingredientId;
+            document.getElementById('unitPrice').value = '';
+            document.getElementById('capacity').value = '1';
+            document.getElementById('capacityUnit').value = unit || '個';
+            
+            costModal.show();
+        }
+
+        async function saveCost() {
+            const ingredientId = document.getElementById('ingredientId').value;
+            const unitPrice = document.getElementById('unitPrice').value;
+            const capacity = document.getElementById('capacity').value;
+            const capacityUnit = document.getElementById('capacityUnit').value;
+            const ingredientName = document.getElementById('ingredientName').value;
+            
+            if (!unitPrice || unitPrice <= 0) {
+                alert('正しい単価を入力してください');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/update-ingredient-cost', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ingredient_id: ingredientId,
+                        unit_price: parseFloat(unitPrice),
+                        capacity: parseFloat(capacity),
+                        capacity_unit: capacityUnit,
+                        ingredient_name: ingredientName
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // ページをリロードして更新された内容を表示
+                    location.reload();
+                } else {
+                    alert('登録に失敗しました: ' + (result.error || '不明なエラー'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('登録中にエラーが発生しました');
+            }
+        }
+    </script>
 </body>
 </html>

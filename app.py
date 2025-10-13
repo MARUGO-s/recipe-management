@@ -2931,6 +2931,82 @@ def view_recipe_detail(recipe_id):
         return "レシピの取得に失敗しました", 500
 
 
+@app.route("/api/update-ingredient-cost", methods=['POST'])
+def update_ingredient_cost():
+    """材料の原価を更新するAPI"""
+    try:
+        data = request.get_json()
+        
+        ingredient_id = data.get('ingredient_id')
+        unit_price = data.get('unit_price')
+        capacity = data.get('capacity', 1)
+        capacity_unit = data.get('capacity_unit', '個')
+        ingredient_name = data.get('ingredient_name')
+        
+        if not ingredient_id or not unit_price or not ingredient_name:
+            return jsonify({"success": False, "error": "必要なパラメータが不足しています"}), 400
+        
+        # 材料の分量を取得
+        ingredient_response = supabase.table('ingredients').select('quantity, unit').eq('id', ingredient_id).execute()
+        
+        if not ingredient_response.data:
+            return jsonify({"success": False, "error": "材料が見つかりません"}), 404
+        
+        ingredient_data = ingredient_response.data[0]
+        quantity = ingredient_data['quantity']
+        unit = ingredient_data['unit']
+        
+        # 原価を計算 (単価 × 分量 / 容量)
+        cost = unit_price * quantity / capacity
+        
+        # 材料の原価を更新
+        supabase.table('ingredients').update({
+            'cost': cost
+        }).eq('id', ingredient_id).execute()
+        
+        # cost_masterに材料情報を追加/更新
+        try:
+            cost_master_manager.add_or_update_cost(
+                ingredient_name=ingredient_name,
+                capacity=capacity,
+                unit=unit,
+                unit_price=unit_price,
+                unit_column=unit
+            )
+            print(f"✅ cost_masterに材料を追加/更新: {ingredient_name}")
+        except Exception as e:
+            print(f"⚠️ cost_master更新エラー: {e}")
+            # cost_masterの更新に失敗しても材料の原価更新は続行
+        
+        # レシピの合計原価を再計算
+        recipe_response = supabase.table('ingredients').select('recipe_id').eq('id', ingredient_id).execute()
+        if recipe_response.data:
+            recipe_id = recipe_response.data[0]['recipe_id']
+            
+            # レシピの全材料の原価を合計
+            ingredients_response = supabase.table('ingredients').select('cost').eq('recipe_id', recipe_id).execute()
+            total_cost = sum(ingredient.get('cost', 0) for ingredient in ingredients_response.data)
+            
+            # レシピの合計原価を更新
+            supabase.table('recipes').update({
+                'total_cost': total_cost
+            }).eq('id', recipe_id).execute()
+            
+            print(f"✅ レシピの合計原価を更新: ¥{total_cost:.2f}")
+        
+        return jsonify({
+            "success": True,
+            "message": "原価を更新しました",
+            "cost": cost
+        })
+        
+    except Exception as e:
+        print(f"❌ 原価更新エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
