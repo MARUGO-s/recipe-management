@@ -106,19 +106,25 @@ class GroqRecipeParser:
             # JSONをパース
             recipe_data = json.loads(response_text)
             
+            print(f"✅ JSON解析成功: {recipe_data}")
+            
             # バリデーション
             if not self._validate_recipe_data(recipe_data):
-                print("レシピデータのバリデーションに失敗しました。")
+                print(f"❌ レシピデータのバリデーションに失敗しました。")
+                print(f"データ内容: {json.dumps(recipe_data, ensure_ascii=False, indent=2)}")
                 return None
             
+            print(f"✅ バリデーション成功")
             return recipe_data
             
         except json.JSONDecodeError as e:
-            print(f"JSON解析エラー: {e}")
-            print(f"レスポンス: {response_text}")
+            print(f"❌ JSON解析エラー: {e}")
+            print(f"Groqレスポンス: {response_text}")
             return None
         except Exception as e:
-            print(f"Groq解析エラー: {e}")
+            print(f"❌ Groq解析エラー: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _validate_recipe_data(self, data: Dict) -> bool:

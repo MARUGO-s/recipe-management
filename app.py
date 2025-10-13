@@ -1055,26 +1055,16 @@ def handle_image_message(event):
 
 
         # ステップ2: Groqでレシピ構造化
-
-
-        recipe_data = groq_parser.parse_recipe_text(ocr_text)
-
-
+        print(f"🔍 Groq解析開始...")
+        print(f"📄 OCRテキスト (最初の500文字):\n{ocr_text[:500]}")
         
-
-
+        recipe_data = groq_parser.parse_recipe_text(ocr_text)
+        
         if not recipe_data:
-
-
+            print(f"❌ Groq解析失敗: recipe_dataがNone")
             line_bot_api.push_message(PushMessageRequest(
-
-
                 to=event.source.user_id,
-
-
-                messages=[TextMessage(text="レシピ情報を解析できませんでした。" )]
-
-
+                messages=[TextMessage(text=f"レシピ情報を解析できませんでした。\n\n抽出されたテキスト:\n{ocr_text[:200]}..." )]
             ))
 
 
