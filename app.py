@@ -2943,9 +2943,9 @@ def update_ingredient_cost():
         capacity = data.get('capacity', 1)
         capacity_unit = data.get('capacity_unit', '個')
         ingredient_name = data.get('ingredient_name')
-            quantity = data.get('quantity')  # 新しい分量
-            unit = data.get('unit')  # 新しい単位
-            new_ingredient_name = data.get('ingredient_name')  # 新しい材料名
+        quantity = data.get('quantity')  # 新しい分量
+        unit = data.get('unit')  # 新しい単位
+        new_ingredient_name = data.get('ingredient_name')  # 新しい材料名
         
         if not ingredient_id or not unit_price or not ingredient_name:
             return jsonify({"success": False, "error": "必要なパラメータが不足しています"}), 400
