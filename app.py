@@ -101,6 +101,12 @@ def set_ai_provider(provider):
 ai_provider = get_ai_provider()
 print(f"🤖 AIプロバイダー: {ai_provider}")
 
+# Groqに強制設定（デバッグ用）
+if ai_provider != 'groq':
+    print(f"🔄 Groqに強制切り替え: {ai_provider} → groq")
+    set_ai_provider('groq')
+    ai_provider = 'groq'
+
 groq_parser = GroqRecipeParser(ai_provider=ai_provider)
 cost_calculator = CostCalculator(supabase) # 修正: Supabaseクライアントを渡す
 cost_master_manager = CostMasterManager()
