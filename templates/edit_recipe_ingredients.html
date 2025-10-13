@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>レシピ材料の編集</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #212529; /* Dark background */
+            color: #e9ecef; /* Light text */
+            padding-top: 20px;
+            padding-bottom: 20px;
+        }
+        .container {
+            max-width: 800px;
+            background-color: #343a40; /* Darker container */
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); /* Darker shadow */
+        }
+        h1 {
+            color: #00bcd4; /* Cyan for headings */
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+        .ingredient-card {
+            background-color: #495057; /* Slightly lighter card */
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #6c757d;
+        }
+        .ingredient-card h5 {
+            color: #f8f9fa;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        .form-label {
+            font-weight: 500;
+            color: #ced4da;
+        }
+        .form-control {
+            background-color: #6c757d;
+            color: #f8f9fa;
+            border-color: #495057;
+        }
+        .form-control:focus {
+            background-color: #6c757d;
+            color: #f8f9fa;
+            border-color: #00bcd4;
+            box-shadow: 0 0 0 0.25rem rgba(0, 188, 212, 0.25);
+        }
+        .btn-primary {
+            background-color: #00bcd4;
+            border-color: #00bcd4;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: #0097a7;
+            border-color: #0097a7;
+        }
+        .btn-success {
+            background-color: #4caf50;
+            border-color: #4caf50;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .btn-success:hover {
+            background-color: #388e3c;
+            border-color: #388e3c;
+        }
+        .btn-danger {
+            background-color: #f44336;
+            border-color: #f44336;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .btn-danger:hover {
+            background-color: #d32f2f;
+            border-color: #d32f2f;
+        }
+        .alert {
+            margin-top: 20px;
+        }
+        .add-ingredient-btn {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>レシピ材料の編集</h1>
+
+        {% if error_message %}
+            <div class="alert alert-danger">{{ error_message }}</div>
+        {% endif %}
+        {% if success_message %}
+            <div class="alert alert-success">{{ success_message }}</div>
+        {% endif %}
+
+        <form action="{{ url_for('save_edited_ingredients') }}" method="POST">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
+            <input type="hidden" name="recipe_name" value="{{ recipe_data.recipe_name }}">
+            <input type="hidden" name="servings" value="{{ recipe_data.servings }}">
+
+            <div id="ingredients-container">
+                {% for ingredient in recipe_data.ingredients %}
+                <div class="ingredient-card" id="ingredient-{{ loop.index0 }}">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5>材料 #{{ loop.index }}</h5>
+                        <button type="button" class="btn btn-danger btn-sm remove-ingredient-btn" data-index="{{ loop.index0 }}">削除</button>
+                    </div>
+                    <div class="mb-3">
+                        <label for="name-{{ loop.index0 }}" class="form-label">材料名</label>
+                        <input type="text" class="form-control" id="name-{{ loop.index0 }}" name="ingredients[{{ loop.index0 }}][name]" value="{{ ingredient.name }}" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="quantity-{{ loop.index0 }}" class="form-label">分量</label>
+                            <input type="number" step="any" class="form-control" id="quantity-{{ loop.index0 }}" name="ingredients[{{ loop.index0 }}][quantity]" value="{{ ingredient.quantity }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="unit-{{ loop.index0 }}" class="form-label">単位</label>
+                            <input type="text" class="form-control" id="unit-{{ loop.index0 }}" name="ingredients[{{ loop.index0 }}][unit]" value="{{ ingredient.unit }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="capacity-{{ loop.index0 }}" class="form-label">容量</label>
+                            <input type="number" step="any" class="form-control" id="capacity-{{ loop.index0 }}" name="ingredients[{{ loop.index0 }}][capacity]" value="{{ ingredient.capacity }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="capacity_unit-{{ loop.index0 }}" class="form-label">容量単位</label>
+                            <input type="text" class="form-control" id="capacity_unit-{{ loop.index0 }}" name="ingredients[{{ loop.index0 }}][capacity_unit]" value="{{ ingredient.capacity_unit }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="unit_price-{{ loop.index0 }}" class="form-label">単価</label>
+                        <input type="number" step="any" class="form-control" id="unit_price-{{ loop.index0 }}" name="ingredients[{{ loop.index0 }}][unit_price]" value="{{ ingredient.unit_price | default('') }}">
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <button type="button" class="btn btn-success add-ingredient-btn">材料を追加</button>
+            <button type="submit" class="btn btn-primary w-100 mt-3">変更を保存</button>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let ingredientIndex = {{ recipe_data.ingredients|length }};
+
+        document.querySelector('.add-ingredient-btn').addEventListener('click', function() {
+            const container = document.getElementById('ingredients-container');
+            const newIngredientCard = document.createElement('div');
+            newIngredientCard.className = 'ingredient-card';
+            newIngredientCard.id = `ingredient-${ingredientIndex}`;
+            newIngredientCard.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5>材料 #${ingredientIndex + 1}</h5>
+                    <button type="button" class="btn btn-danger btn-sm remove-ingredient-btn" data-index="${ingredientIndex}">削除</button>
+                </div>
+                <div class="mb-3">
+                    <label for="name-${ingredientIndex}" class="form-label">材料名</label>
+                    <input type="text" class="form-control" id="name-${ingredientIndex}" name="ingredients[${ingredientIndex}][name]" required>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="quantity-${ingredientIndex}" class="form-label">分量</label>
+                        <input type="number" step="any" class="form-control" id="quantity-${ingredientIndex}" name="ingredients[${ingredientIndex}][quantity]" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="unit-${ingredientIndex}" class="form-label">単位</label>
+                        <input type="text" class="form-control" id="unit-${ingredientIndex}" name="ingredients[${ingredientIndex}][unit]">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="capacity-${ingredientIndex}" class="form-label">容量</label>
+                        <input type="number" step="any" class="form-control" id="capacity-${ingredientIndex}" name="ingredients[${ingredientIndex}][capacity]" value="1">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="capacity_unit-${ingredientIndex}" class="form-label">容量単位</label>
+                        <input type="text" class="form-control" id="capacity_unit-${ingredientIndex}" name="ingredients[${ingredientIndex}][capacity_unit]" value="個">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="unit_price-${ingredientIndex}" class="form-label">単価</label>
+                    <input type="number" step="any" class="form-control" id="unit_price-${ingredientIndex}" name="ingredients[${ingredientIndex}][unit_price]">
+                </div>
+            `;
+            container.appendChild(newIngredientCard);
+            ingredientIndex++;
+            attachRemoveListeners();
+        });
+
+        function attachRemoveListeners() {
+            document.querySelectorAll('.remove-ingredient-btn').forEach(button => {
+                button.onclick = function() {
+                    const indexToRemove = this.dataset.index;
+                    document.getElementById(`ingredient-${indexToRemove}`).remove();
+                    // Re-index remaining ingredients if necessary (optional, but good for clean data)
+                    // For simplicity, we'll just remove and let Flask handle potential sparse array indices
+                };
+            });
+        }
+
+        attachRemoveListeners(); // Attach listeners for initial ingredients
+    </script>
+</body>
+</html>

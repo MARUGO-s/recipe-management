@@ -912,6 +912,53 @@ JSON："""
         }), 500
 
 
+@app.route("/recipe/edit_ingredients", methods=['GET'])
+def edit_recipe_ingredients():
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return "User ID not provided", 400
+
+    user_state = get_user_state(user_id)
+    recipe_data = user_state.get('recipe_data')
+
+    if not recipe_data:
+        return "Recipe data not found in session. Please send an image again.", 404
+
+    # 各材料の単価をcost_masterから取得してrecipe_dataに追加
+    for ingredient in recipe_data.get('ingredients', []):
+        ingredient_name = ingredient.get('name')
+        if ingredient_name:
+            # cost_masterから単価を取得
+            # cost_master_manager.get_cost_info(ingredient_name) は単一の材料名で検索するため、
+            # 複数の容量や単位を持つ材料に対応できない可能性がある。
+            # ここでは簡易的に、最も近いと思われる単価を取得する。
+            # 理想的には、name, capacity, unitで複合検索すべきだが、現在のget_cost_infoは単一のnameのみ。
+            # したがって、ここではsearch_costsを使用して、
+            # 複数の結果から最も関連性の高いものを選択するか、最初の結果を使用する。
+            
+            # 既存のcost_master_manager.get_cost_infoは単一の材料名で検索するため、
+            # ここではsearch_costsを使って、より柔軟に単価を取得する
+            search_results = cost_master_manager.search_costs(ingredient_name, limit=1)
+            if search_results:
+                # 最初の結果の単価を使用
+                ingredient['unit_price'] = search_results[0].get('unit_price')
+            else:
+                ingredient['unit_price'] = None # 見つからない場合はNone
+
+    # recipe_dataは辞書なので、テンプレートに渡す前にオブジェクトのようにアクセスできるようにする
+    class RecipeData:
+        def __init__(self, data):
+            self.__dict__ = data
+    
+    recipe_obj = RecipeData(recipe_data)
+
+    return render_template('edit_recipe_ingredients.html', 
+                           user_id=user_id, 
+                           recipe_data=recipe_obj,
+                           error_message=request.args.get('error_message'),
+                           success_message=request.args.get('success_message'))
+
+
 @app.route("/admin/clear", methods=['POST'])
 def admin_clear():
     """データベース内容のクリア（選択式）"""
@@ -2578,7 +2625,7 @@ def handle_edit_recipe_postback(event, user_id):
             return
         
         # 修正用のフォームURLを生成
-        form_url = f"https://recipe-management-nd00.onrender.com/recipe/edit?user_id={user_id}"
+        form_url = url_for('edit_recipe_ingredients', user_id=user_id, _external=True)
         
         # 修正フォームへのリンクを送信
         line_bot_api.reply_message(ReplyMessageRequest(
@@ -2631,6 +2678,94 @@ def handle_save_recipe_postback(event, user_id):
             reply_token=event.reply_token,
             messages=[TextMessage(text="レシピの保存中にエラーが発生しました。")]
         ))
+
+
+@app.route("/recipe/save_edited_ingredients", methods=['POST'])
+def save_edited_ingredients():
+    user_id = request.form.get('user_id')
+    if not user_id:
+        return "User ID not provided", 400
+
+    user_state = get_user_state(user_id)
+    if not user_state or 'recipe_data' not in user_state:
+        return "Recipe data not found in session. Please send an image again.", 404
+
+    try:
+        # フォームから送信されたデータを取得
+        print(f"🔍 フォームデータ受信開始...")
+        edited_recipe_name = request.form.get('recipe_name', '')
+        edited_servings = int(request.form.get('servings', 1))
+        print(f"📝 レシピ名: {edited_recipe_name}, 人数: {edited_servings}")
+        
+        edited_ingredients = []
+        # フォームデータは 'ingredients[0][name]', 'ingredients[0][quantity]' の形式で来る
+        # これをパースしてリストに変換する
+        i = 0
+        while True:
+            name_key = f'ingredients[{i}][name]'
+            if name_key not in request.form:
+                break
+            
+            try:
+                name = request.form.get(name_key, '')
+                quantity = float(request.form.get(f'ingredients[{i}][quantity]', 0))
+                unit = request.form.get(f'ingredients[{i}][unit]', '')
+                capacity = float(request.form.get(f'ingredients[{i}][capacity]', 1))
+                capacity_unit = request.form.get(f'ingredients[{i}][capacity_unit]', '個')
+                unit_price_str = request.form.get(f'ingredients[{i}][unit_price]', '')
+                print(f"🔍 材料 {i}: unit_price_str = '{unit_price_str}'")
+            except Exception as e:
+                print(f"❌ 材料 {i} のフォームデータ取得エラー: {e}")
+                i += 1
+                continue
+            
+            unit_price = None
+            if unit_price_str and unit_price_str.strip():
+                try:
+                    unit_price = float(unit_price_str.strip())
+                    print(f"✅ 材料 {i}: unit_price = {unit_price}")
+                except ValueError as e:
+                    print(f"⚠️ 材料 {i}: 無効な単価 '{unit_price_str}' - {e}")
+                    pass # 無効な単価は無視
+
+            if name:
+                edited_ingredients.append({
+                    'name': name,
+                    'quantity': quantity,
+                    'unit': unit,
+                    'capacity': capacity,
+                    'capacity_unit': capacity_unit,
+                    'unit_price': unit_price # 単価も追加
+                })
+
+                # 単価が入力されている場合、cost_masterを更新または登録
+                if unit_price is not None:
+                    cost_master_manager.add_or_update_cost(
+                        ingredient_name=name,
+                        capacity=capacity,
+                        unit=unit,
+                        unit_price=unit_price,
+                        unit_column="" # フォームからの追加では使用しない
+                    )
+            i += 1
+
+        # ユーザーセッションのレシピデータを更新
+        user_state['recipe_data']['recipe_name'] = edited_recipe_name
+        user_state['recipe_data']['servings'] = edited_servings
+        user_state['recipe_data']['ingredients'] = edited_ingredients
+        set_user_state(user_id, user_state)
+
+        # 成功メッセージを表示してLINEにリダイレクト
+        # LINEに直接リダイレクトするのではなく、成功メッセージを表示するページにリダイレクト
+        # または、LINEのFlexMessageで「原価計算する」ボタンなどを再度表示する
+        # ここでは、一時的に成功メッセージを表示するページにリダイレクト
+        return redirect(url_for('edit_recipe_ingredients', user_id=user_id, success_message="レシピ材料を更新しました！LINEに戻って原価計算または保存してください。"))
+
+    except Exception as e:
+        print(f"❌ 材料保存エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return redirect(url_for('edit_recipe_ingredients', user_id=user_id, error_message=f"材料の保存中にエラーが発生しました: {str(e)}"))
 
 
 if __name__ == "__main__":

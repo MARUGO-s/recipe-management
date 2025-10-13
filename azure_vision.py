@@ -16,15 +16,15 @@ class AzureVisionAnalyzer:
         if not self.endpoint or not self.key:
             raise ValueError("Azure Vision APIの設定が不足しています。")
     
-    def analyze_image_from_url(self, image_url: str) -> Optional[str]:
+    def analyze_image_from_url(self, image_url: str) -> Optional[tuple[str, str]]:
         """
-        画像URLからOCRでテキストを抽出
+        画像URLからOCRでテキストと言語コードを抽出
         
         Args:
             image_url: 画像のURL
             
         Returns:
-            抽出されたテキスト（複数行の場合は改行で結合）
+            (テキスト, 言語コード) のタプル。解析に失敗した場合はNone。
         """
         try:
             # Azure Vision API v3.2 (Read API)
@@ -52,9 +52,14 @@ class AzureVisionAnalyzer:
                 return None
 
             # Step 2: 解析結果をポーリングして取得
+            result = self._get_analysis_result(operation_location)
+
+            if not result:
+                return None
+
             # Step 3: readResultsからテキストを抽出
             full_text, language = self._extract_text_from_result(result)
-            
+
             return full_text, language
             
         except requests.exceptions.RequestException as e:
@@ -64,15 +69,15 @@ class AzureVisionAnalyzer:
             print(f"画像解析エラー: {e}")
             return None
     
-    def analyze_image_from_bytes(self, image_bytes: bytes) -> Optional[str]:
+    def analyze_image_from_bytes(self, image_bytes: bytes) -> Optional[tuple[str, str]]:
         """
-        画像バイナリデータからOCRでテキストを抽出
+        画像バイナリデータからOCRでテキストと言語コードを抽出
         
         Args:
             image_bytes: 画像のバイナリデータ
             
         Returns:
-            抽出されたテキスト（複数行の場合は改行で結合）
+            (テキスト, 言語コード) のタプル。解析に失敗した場合はNone。
         """
         try:
             analyze_url = f"{self.endpoint}vision/v3.2/read/analyze"
@@ -99,6 +104,9 @@ class AzureVisionAnalyzer:
 
             # Step 2: 解析結果をポーリングして取得
             result = self._get_analysis_result(operation_location)
+
+            if not result:
+                return None
 
             # Step 3: readResultsからテキストを抽出
             full_text, language = self._extract_text_from_result(result)
@@ -173,4 +181,3 @@ if __name__ == "__main__":
     result = analyzer.analyze_image_from_url(test_url)
     print("抽出されたテキスト:")
     print(result)
-

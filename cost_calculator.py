@@ -1,25 +1,8 @@
-"""
-Supabaseから原価表を読み込み、材料ごとに原価を計算するモジュール
-"""
-import os
-import csv
-from typing import Dict, List, Optional
-from decimal import Decimal
-from supabase import create_client, Client
-from dotenv import load_dotenv
+"""Supabaseから原価表を読み込み、材料ごとに原価を計算するモジュール"""
 
-load_dotenv()
-
-"""
-Supabaseから原価表を読み込み、材料ごとに原価を計算するモジュール
-"""
-import os
 from typing import Dict, List, Optional
 from decimal import Decimal, InvalidOperation
 from supabase import Client
-from dotenv import load_dotenv
-
-load_dotenv()
 
 class CostCalculator:
     def __init__(self, supabase_client: Client):
@@ -202,29 +185,3 @@ class CostCalculator:
             'total_cost': float(total_cost),
             'missing_ingredients': missing_ingredients
         }
-
-
-
-if __name__ == "__main__":
-    # テスト用
-    calculator = CostCalculator()
-    
-    # 原価表の読み込み（ストレージまたはDB）
-    try:
-        calculator.load_cost_master_from_storage()
-    except:
-        calculator._load_cost_master_from_db()
-    
-    # テスト材料
-    test_ingredients = [
-        {"name": "玉ねぎ", "quantity": 1.0, "unit": "個"},
-        {"name": "にんじん", "quantity": 1.0, "unit": "本"},
-        {"name": "豚肉", "quantity": 200.0, "unit": "g"}
-    ]
-    
-    result = calculator.calculate_recipe_cost(test_ingredients)
-    print("原価計算結果:")
-    print(f"合計原価: {result['total_cost']}円")
-    print(f"材料別原価: {result['ingredients_with_cost']}")
-    print(f"未登録材料: {result['missing_ingredients']}")
-
