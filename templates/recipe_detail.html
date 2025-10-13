@@ -265,22 +265,6 @@
                  background: rgba(60, 60, 80, 0.9);
                  color: #e0e0e0;
              }
-             .calculation-explanation {
-                 font-size: 0.9rem;
-             }
-             .formula {
-                 background: rgba(100, 181, 246, 0.2);
-                 padding: 2px 6px;
-                 border-radius: 4px;
-                 font-family: monospace;
-                 color: #64b5f6;
-             }
-             .example-calculation {
-                 background: rgba(255, 255, 255, 0.1);
-                 padding: 8px;
-                 border-radius: 6px;
-                 border-left: 3px solid #64b5f6;
-             }
              .calculation-preview {
                  background: rgba(40, 40, 60, 0.8) !important;
                  border: 1px solid rgba(255, 255, 255, 0.1);
@@ -416,30 +400,16 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- 原価計算の説明 -->
-                    <div class="alert alert-info mb-3">
-                        <h6><i class="fas fa-calculator me-2"></i>原価計算の仕組み</h6>
-                        <div class="calculation-explanation">
-                            <p class="mb-2"><strong>分量</strong>: レシピで使用する材料の量（例：150g）</p>
-                            <p class="mb-2"><strong>容量と単価</strong>: 仕入単位での価格（例：1000gで350円）</p>
-                            <p class="mb-0"><strong>計算式</strong>: <span class="formula">単価 ÷ 容量 × 分量 = 原価</span></p>
-                            <div class="example-calculation mt-2">
-                                <small class="text-muted">
-                                    例：350円 ÷ 1000g × 150g = 52.5円
-                                </small>
-                            </div>
-                        </div>
-                    </div>
                     <form id="costForm">
                         <input type="hidden" id="ingredientId" name="ingredient_id">
                         <div class="mb-3">
                             <label for="ingredientName" class="form-label">材料名</label>
-                            <input type="text" class="form-control" id="ingredientName" readonly>
+                            <input type="text" class="form-control" id="ingredientName">
                         </div>
                         <div class="mb-3">
                             <label for="ingredientQuantity" class="form-label">分量（使用量）</label>
-                            <input type="text" class="form-control" id="ingredientQuantity" name="quantity" readonly>
-                            <div class="form-text">レシピで実際に使用する材料の量（読み取り専用）</div>
+                            <input type="text" class="form-control" id="ingredientQuantity" name="quantity">
+                            <div class="form-text">レシピで実際に使用する材料の量（例：150g、2個）</div>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
@@ -505,6 +475,7 @@
             const unitPriceInput = document.getElementById('unitPrice');
             const capacityInput = document.getElementById('capacity');
             const capacityUnitInput = document.getElementById('capacityUnit');
+            const quantityInput = document.getElementById('ingredientQuantity');
             
             function updateCalculationPreview() {
                 const unitPrice = parseFloat(unitPriceInput.value) || 0;
@@ -543,6 +514,7 @@
             unitPriceInput.addEventListener('input', updateCalculationPreview);
             capacityInput.addEventListener('input', updateCalculationPreview);
             capacityUnitInput.addEventListener('input', updateCalculationPreview);
+            quantityInput.addEventListener('input', updateCalculationPreview);
         });
         
         // 印刷機能

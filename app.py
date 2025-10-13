@@ -2943,8 +2943,9 @@ def update_ingredient_cost():
         capacity = data.get('capacity', 1)
         capacity_unit = data.get('capacity_unit', '個')
         ingredient_name = data.get('ingredient_name')
-        quantity = data.get('quantity')  # 新しい分量
-        unit = data.get('unit')  # 新しい単位
+            quantity = data.get('quantity')  # 新しい分量
+            unit = data.get('unit')  # 新しい単位
+            new_ingredient_name = data.get('ingredient_name')  # 新しい材料名
         
         if not ingredient_id or not unit_price or not ingredient_name:
             return jsonify({"success": False, "error": "必要なパラメータが不足しています"}), 400
@@ -2976,12 +2977,17 @@ def update_ingredient_cost():
         # 原価を計算 (単価 × 分量 / 容量)
         cost = unit_price * quantity / capacity
         
-        # 材料の原価、分量、単位を更新（ユーザー入力の値をそのまま使用）
+        # 材料の原価、分量、単位、材料名を更新（ユーザー入力の値をそのまま使用）
         update_data = {
             'cost': cost,
             'quantity': quantity,
             'unit': unit
         }
+        
+        # 材料名が変更されている場合は更新
+        if new_ingredient_name and new_ingredient_name != ingredient_name:
+            update_data['ingredient_name'] = new_ingredient_name
+            ingredient_name = new_ingredient_name
         
         supabase.table('ingredients').update(update_data).eq('id', ingredient_id).execute()
         
